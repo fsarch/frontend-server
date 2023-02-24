@@ -27,7 +27,7 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
     const tarFile = path.resolve(basePath, `${versionKey}.tar`);
     await writeFile(tarFile, req);
 
-    let paths: { path: string; size: number; }[] = [];
+    let paths: { path: string; size: number; originalPath: string; }[] = [];
 
     await tar.x({
         file: tarFile,
@@ -38,12 +38,11 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
             }
 
             if ((stat as any).type === 'File') {
-                console.log(stat);
-
                 const normalizedPath = path.startsWith('./') ? path.substring(2) : path;
 
                 paths.push({
-                    path: normalizedPath,
+                    path: normalizedPath.toLowerCase(),
+                    originalPath: normalizedPath,
                     size: stat.size,
                 });
             }
@@ -52,7 +51,7 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
         },
     });
 
-    const files: Record<string, { hash: string; size: number; mime: string; }> = {};
+    const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
     for (let i = 0, z = paths.length; i < z ; i += 1) {
         const content = await readFile(path.resolve(versionPath, `./${paths[i].path}`));
         const hash = createHash('md5').update(content).digest('base64');
@@ -60,6 +59,7 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
             hash,
             size: paths[i].size,
             mime: mimeLookup(paths[i].path) || 'application/octet-stream',
+            path: paths[i].originalPath,
         };
     }
 

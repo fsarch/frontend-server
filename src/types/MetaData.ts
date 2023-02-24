@@ -5,6 +5,9 @@ export type MetaData = {
             files: {
                 [fileName: string]: {
                     hash: string;
+                    size: number;
+                    path: string;
+                    mime: string;
                 };
             };
         };

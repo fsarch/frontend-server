@@ -26,6 +26,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "lru-cache": "^7.17.0",
     "mime-types": "^2.1.35",
     "semaphore-async-await": "^1.5.1",
     "tar": "^6.1.13"
