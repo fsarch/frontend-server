@@ -30,7 +30,15 @@ export default async function handleFile(
         return;
     }
 
+    const eTagValue = JSON.stringify(foundFile.file.hash);
+    if (req.headers['if-none-match'] && req.headers['if-none-match'] === eTagValue) {
+        res.statusCode = 304;
+        res.end();
+        return;
+    }
+
     res.setHeader('Content-Type', foundFile.file.mime);
+    res.setHeader('ETag', eTagValue);
 
     if (foundFile.file.size > 5 * 1024 * 1024) { // stream file when size is bigger than 5 MB
 
@@ -53,7 +61,6 @@ export default async function handleFile(
 
     const cachedEntry = CACHE.get(foundFile.path);
     if (cachedEntry) {
-        console.log('serve from cache');
         res.statusCode = 200;
         res.end(cachedEntry);
         return;

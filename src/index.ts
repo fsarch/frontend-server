@@ -30,7 +30,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname?.startsWith('/projects')) {
-        console.log(url.pathname);
         const projectMatch = url.pathname?.match(PROJECT_REGEX);
         if (!projectMatch) {
             res.statusCode = 404;
