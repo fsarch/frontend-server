@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DATA_PATH } from '../constants/app-constants.js';
+import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../constants/app-constants.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import tar from 'tar';
 import isWithin from './isWithin.js';
@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import updateMetaData from './updateMetaData.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { lookup as mimeLookup } from 'mime-types';
+import cleanupOldVersions from './cleanupOldVersions.js';
 
 export default async function handleUpload(req: IncomingMessage, res: ServerResponse & { req: IncomingMessage; }, projectId: string): Promise<void> {
     const now = new Date();
@@ -64,7 +65,13 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
     }
 
     await updateMetaData(projectId, async (metaData) => {
+        if (metaData.currentVersion && metaData.versions[metaData.currentVersion]) {
+            metaData.versions[metaData.currentVersion].deletionTime = Date.now();
+        }
+
         metaData.versions[versionKey] = {
+            creationTime: Date.now(),
+            deletionTime: null,
             files,
         };
 
@@ -75,6 +82,10 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
 
         metaData.currentVersion = versionKey;
         metaData.versionsArray.push(versionKey);
+
+        if (metaData.versionsArray.length > MAX_VERSION_COUNT && (Date.now() - (metaData.versions[metaData.versionsArray[0]]?.deletionTime ?? 0) > MAX_VERSION_AGE)) {
+            await cleanupOldVersions(projectId, metaData);
+        }
 
         return metaData;
     });
