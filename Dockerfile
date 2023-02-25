@@ -2,7 +2,6 @@
 FROM node:18.12.0-bullseye-slim AS builder
 WORKDIR /usr/src/app
 
-COPY .npmrc ./
 COPY package*.json ./
 RUN npm install
 
@@ -22,7 +21,6 @@ EXPOSE 8080
 
 RUN mkdir -p /var/sfs/data
 
-COPY .npmrc ./
 COPY package*.json ./
 RUN npm install
 
