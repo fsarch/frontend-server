@@ -54,7 +54,7 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
 
     const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
     for (let i = 0, z = paths.length; i < z ; i += 1) {
-        const content = await readFile(path.resolve(versionPath, `./${paths[i].path}`));
+        const content = await readFile(path.resolve(versionPath, `./${paths[i].originalPath}`));
         const hash = createHash('md5').update(content).digest('base64');
         files[paths[i].path] = {
             hash,
