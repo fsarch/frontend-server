@@ -16,8 +16,11 @@ WORKDIR /usr/src/app
 
 ENV PORT 8080
 ENV NODE_ENV production
+ENV DATA_PATH /var/sfs/data
 
 EXPOSE 8080
+
+RUN mkdir -p /var/sfs/data
 
 COPY .npmrc ./
 COPY package*.json ./
