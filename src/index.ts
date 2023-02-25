@@ -3,6 +3,7 @@ import * as Url from 'node:url'
 import { PROJECT_REGEX, UPLOAD_REGEX } from './constants/regexes.js';
 import handleUpload from './utils/handleUpload.js';
 import handleFile from './utils/handleFile.js';
+import { UPLOAD_SECRET } from './constants/app-constants.js';
 
 const PORT = parseInt(process.env.PORT as string, 10) || 8080;
 
@@ -19,6 +20,20 @@ const server = http.createServer(async (req, res) => {
 
         if (req.method !== 'POST') {
             res.statusCode = 405;
+            res.end();
+            return;
+        }
+
+        if (!req.headers.authorization || !req.headers.authorization.toLowerCase().startsWith('secret ')) {
+            res.statusCode = 401;
+            res.end();
+            return;
+        }
+
+        const secret = req.headers.authorization.substring(7);
+
+        if (secret !== UPLOAD_SECRET) {
+            res.statusCode = 403;
             res.end();
             return;
         }
