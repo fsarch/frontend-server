@@ -4,7 +4,7 @@ import { PROJECT_REGEX, UPLOAD_REGEX } from './constants/regexes.js';
 import handleUpload from './utils/handleUpload.js';
 import handleFile from './utils/handleFile.js';
 
-const port = 3000;
+const PORT = parseInt(process.env.PORT as string, 10) || 8080;
 
 const server = http.createServer(async (req, res) => {
     const url = Url.parse(req.url as string);
@@ -54,6 +54,6 @@ const server = http.createServer(async (req, res) => {
     res.end();
 });
 
-server.listen(port, () => {
-    console.log(`Server running at port ${port}`);
+server.listen(PORT, () => {
+    console.log(`Server running at port ${PORT}`);
 });
