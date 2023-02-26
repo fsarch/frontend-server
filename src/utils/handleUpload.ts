@@ -30,27 +30,33 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
 
     let paths: { path: string; size: number; originalPath: string; }[] = [];
 
-    await tar.x({
-        file: tarFile,
-        cwd: versionPath,
-        filter: (path, stat) => {
-            if (!isWithin(versionPath, path)) {
-                return false;
-            }
+    try {
+        await tar.x({
+            file: tarFile,
+            cwd: versionPath,
+            filter: (path, stat) => {
+                if (!isWithin(versionPath, path)) {
+                    return false;
+                }
 
-            if ((stat as any).type === 'File') {
-                const normalizedPath = path.startsWith('./') ? path.substring(2) : path;
+                if ((stat as any).type === 'File') {
+                    const normalizedPath = path.startsWith('./') ? path.substring(2) : path;
 
-                paths.push({
-                    path: normalizedPath.toLowerCase(),
-                    originalPath: normalizedPath,
-                    size: stat.size,
-                });
-            }
+                    paths.push({
+                        path: normalizedPath.toLowerCase(),
+                        originalPath: normalizedPath,
+                        size: stat.size,
+                    });
+                }
 
-            return true;
-        },
-    });
+                return true;
+            },
+        });
+    } catch (e: any) {
+        res.statusCode = 400;
+        res.end();
+        return;
+    }
 
     const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
     for (let i = 0, z = paths.length; i < z ; i += 1) {
