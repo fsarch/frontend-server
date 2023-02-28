@@ -37,7 +37,8 @@ export default class MultiServerEvent {
                     name: eventName,
                     payload,
                     source: this.serverId,
-                }), () => {
+                }) + '\n', () => {
+                    console.log('written data to server', server);
                     client.destroy();
                 });
             });
