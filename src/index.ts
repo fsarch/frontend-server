@@ -4,6 +4,8 @@ import { PROJECT_REGEX, UPLOAD_REGEX } from './constants/regexes.js';
 import handleUpload from './utils/handleUpload.js';
 import handleFile from './utils/handleFile.js';
 import { UPLOAD_SECRET } from './constants/app-constants.js';
+import { MULTI_SERVER_EVENT } from './constants/multi-server-event.js';
+import { invalidateMetaData } from './utils/updateMetaData.js';
 
 const PORT = parseInt(process.env.PORT as string, 10) || 8080;
 
@@ -41,6 +43,14 @@ const server = http.createServer(async (req, res) => {
         const projectId = uploadMatch[1];
 
         await handleUpload(req, res, projectId);
+
+        try {
+            await MULTI_SERVER_EVENT.send('invalidateProjectCache', {
+                projectId,
+            });
+        } catch (e) {
+            console.error('error while sending multi server events', e);
+        }
         return;
     }
 
@@ -72,3 +82,13 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
     console.log(`Server running at port ${PORT}`);
 });
+
+try {
+    await MULTI_SERVER_EVENT.listen();
+
+    MULTI_SERVER_EVENT.on('invalidateProjectCache', async ({projectId}) => {
+        await invalidateMetaData(projectId);
+    })
+} catch (e) {
+    console.error('error while listing to multi server events', e);
+}

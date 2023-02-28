@@ -6,6 +6,25 @@ import { DATA_PATH } from '../constants/app-constants.js';
 
 const cache: Record<string, { data: MetaData | null, semaphore: Lock }> = {};
 
+export async function invalidateMetaData(projectId: string): Promise<boolean> {
+    try {
+        console.log('invalidate project meta-data', projectId);
+
+        if (!cache[projectId]) {
+            return true;
+        }
+
+        await cache[projectId].semaphore.execute(async () => {
+            cache[projectId].data = null;
+        });
+
+        return true;
+    } catch (e) {
+        console.error('error while invalidating meta-data cache', projectId, e);
+        return false;
+    }
+}
+
 export default async function updateMetaData(projectId: string, cb: (value: MetaData) => Promise<MetaData>) {
     if (!cache[projectId]) {
         cache[projectId] = {
