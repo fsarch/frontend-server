@@ -5,6 +5,8 @@
     <node-interpreter value="project" />
     <envs>
       <env name="DATA_PATH" value="./data" />
+      <env name="SERVER_DISCOVERY_IPS" value="8089" />
+      <env name="SERVER_DISCOVERY_PORT" value="127.0.0.1" />
     </envs>
     <method v="2" />
   </configuration>
