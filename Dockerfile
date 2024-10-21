@@ -1,30 +1,53 @@
-# Build Dockerfile
-FROM node:18.12.0-bullseye-slim AS builder
+# Base
+FROM node:20.10.0-bullseye-slim AS base
+
+ENV PORT 8080
+
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-RUN npm install
+
+
+# Production Deps
+FROM base AS deps
+
+ENV NODE_ENV production
+
+RUN apt-get update && \
+    apt-get install -y node-gyp && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+RUN npm ci --fetch-timeout=300000
+
+
+# Build Dockerfile
+FROM base AS builder
+
+RUN apt-get update && \
+    apt-get install -y node-gyp && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+RUN npm ci --fetch-timeout=300000
 
 COPY . ./
 RUN npm run build
 
+
 # Main Dockerfile
-FROM node:18.12.0-bullseye-slim
+FROM base
 
-WORKDIR /usr/src/app
-
-ENV PORT 8080
 ENV NODE_ENV production
 ENV DATA_PATH /var/sfs/data
+ENV PORT 8080
 
 EXPOSE 8080
 
+COPY --from=builder --chown=node:node /usr/src/app/dist ./dist
+COPY --from=deps --chown=node:node /usr/src/app/node_modules ./node_modules
+
 RUN mkdir -p /var/sfs/data
 
-COPY package*.json ./
-RUN npm install
-
-COPY --from=builder /usr/src/app/build ./build
+USER node
 
 CMD ["node", "./build/index.js"]
 
