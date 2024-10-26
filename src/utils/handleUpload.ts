@@ -2,14 +2,16 @@ import path from 'node:path';
 import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../constants/app-constants.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import tar from 'tar';
+import { lookup as mimeLookup } from 'mime-types';
+import { BadRequestException } from "@nestjs/common";
+import { Request } from 'express';
+
 import isWithin from './isWithin.js';
 import { createHash } from 'crypto';
 import updateMetaData from './updateMetaData.js';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { lookup as mimeLookup } from 'mime-types';
 import cleanupOldVersions from './cleanupOldVersions.js';
 
-export default async function handleUpload(req: IncomingMessage, res: ServerResponse & { req: IncomingMessage; }, projectId: string): Promise<void> {
+export default async function handleUpload(req: Request, projectId: string): Promise<void> {
     const now = new Date();
     const monthString = String(now.getUTCMonth()).padStart(2, '0');
     const dateString = String(now.getUTCDate()).padStart(2, '0');
@@ -53,9 +55,7 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
             },
         });
     } catch (e: any) {
-        res.statusCode = 400;
-        res.end();
-        return;
+        throw new BadRequestException();
     }
 
     const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
@@ -95,8 +95,4 @@ export default async function handleUpload(req: IncomingMessage, res: ServerResp
 
         return metaData;
     });
-
-    res.statusCode = 201;
-    res.end();
-    return;
 }

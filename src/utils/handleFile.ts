@@ -1,9 +1,10 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import findFile from './findFile.js';
+import type { Response } from 'express';
 import * as fs from 'fs';
 import LRUCache from 'lru-cache';
 import { readFile } from 'node:fs/promises';
 import { lookup as mimeLookup } from 'mime-types';
+
+import findFile from './findFile.js';
 
 const CACHE = new LRUCache<string, Buffer>({
   maxSize: 100 * 1024 * 1024,
@@ -13,8 +14,8 @@ const CACHE = new LRUCache<string, Buffer>({
 })
 
 export default async function handleFile(
-  req: IncomingMessage,
-  res: ServerResponse & { req: IncomingMessage; },
+  headers: Headers,
+  res: Response,
   projectId: string,
   requestPath: string,
 ): Promise<void> {
@@ -31,7 +32,7 @@ export default async function handleFile(
   }
 
   const eTagValue = JSON.stringify(foundFile.file.hash);
-  if (req.headers['if-none-match'] && req.headers['if-none-match'] === eTagValue) {
+  if (headers['if-none-match'] && headers['if-none-match'] === eTagValue) {
     res.statusCode = 304;
     res.end();
     return;

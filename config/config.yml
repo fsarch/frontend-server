@@ -1,0 +1,10 @@
+uac:
+  type: 'static'
+  users:
+    - user_id: 'abcdef'
+      permissions:
+        - manage_claims
+
+auth:
+  type: 'jwt-jwk'
+  jwkUrl: 'https://login.manga-datenbank.de/realms/manga_database/protocol/openid-connect/certs'
