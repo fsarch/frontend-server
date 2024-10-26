@@ -49,5 +49,5 @@ RUN mkdir -p /var/sfs/data
 
 USER node
 
-CMD ["node", "./build/index.js"]
+CMD ["node", "./dist/main.js"]
 
