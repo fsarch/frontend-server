@@ -42,7 +42,7 @@ ENV PORT 8080
 
 EXPOSE 8080
 
-COPY --from=builder --chown=node:node /usr/src/app/build ./build
+COPY --from=builder --chown=node:node /usr/src/app/dist ./dist
 COPY --from=deps --chown=node:node /usr/src/app/node_modules ./node_modules
 
 RUN mkdir -p /var/sfs/data
