@@ -1,29 +1,23 @@
-import { Controller, Param, Post, RawBodyRequest, Req } from '@nestjs/common';
+import { Controller, Param, Post, Req } from '@nestjs/common';
 import { Request } from 'express';
-
-import handleUpload from "../../../../utils/handleUpload.js";
-import { invalidateMetaData } from "../../../../utils/updateMetaData.js";
 import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
+import { UploadService } from '../upload.service.js';
 
 @Controller({
   path: '/api/projects/:projectId/versions',
   version: '1',
 })
-@ApiTags('versions')
+@ApiTags('projects')
 @ApiBearerAuth()
 export class VersionsController {
+  constructor(private readonly uploadService: UploadService) {}
+
   @Post()
   @ApiConsumes('application/octet-stream')
-  public async Upload(
+  public async uploadVersion(
     @Param('projectId') projectId: string,
     @Req() request: Request,
   ) {
-    await handleUpload(request, projectId);
-
-    try {
-      await invalidateMetaData(projectId);
-    } catch (e) {
-      console.error('error while invalidating meta data', e);
-    }
+    await this.uploadService.handleUpload(request, projectId);
   }
 }

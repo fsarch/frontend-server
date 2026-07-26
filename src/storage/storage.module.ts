@@ -2,7 +2,6 @@ import { Module, Global } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageProviderFactory } from './storage-provider.factory.js';
 import { IStorageProvider } from './storage-provider.interface.js';
-import { StorageService } from './storage.service.js';
 
 export const DATA_STORAGE_PROVIDER = 'DATA_STORAGE_PROVIDER';
 
@@ -17,8 +16,7 @@ export const DATA_STORAGE_PROVIDER = 'DATA_STORAGE_PROVIDER';
       },
       inject: [ConfigService],
     },
-    StorageService,
   ],
-  exports: [DATA_STORAGE_PROVIDER, StorageService],
+  exports: [DATA_STORAGE_PROVIDER],
 })
 export class StorageModule {}
