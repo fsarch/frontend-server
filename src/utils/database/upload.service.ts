@@ -1,21 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, forwardRef, Inject } from '@nestjs/common';
 import path from 'node:path';
-import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../../constants/app-constants.js';
+import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../constants/app-constants.js';
 import { mkdir, readFile, writeFile, unlink, rm } from 'node:fs/promises';
 import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
 import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
 
-import isWithin from '../../../utils/isWithin.js';
+import isWithin from '../../utils/isWithin.js';
 import { createHash } from 'crypto';
 import { MetadataService } from './metadata.service.js';
-import { ProjectsService } from './projects.service.js';
+import { ProjectsService } from '../../controller/admin/projects/projects.service.js';
 
 @Injectable()
 export class UploadService {
   constructor(
     private readonly metadataService: MetadataService,
+    @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
   ) {}
 

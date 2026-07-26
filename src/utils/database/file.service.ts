@@ -7,9 +7,9 @@ import LRUCache from 'lru-cache';
 import { readFile } from 'node:fs/promises';
 import { lookup as mimeLookup } from 'mime-types';
 import path from 'node:path';
-import { DATA_PATH } from '../../../constants/app-constants.js';
+import { DATA_PATH } from '../../constants/app-constants.js';
 import { MetadataService, ProjectFileInfo } from './metadata.service.js';
-import { ProjectFile } from '../../../database/entities/project-file.entity.js';
+import { ProjectFile } from '../../database/entities/project-file.entity.js';
 
 const CACHE = new LRUCache<string, Buffer>({
   maxSize: 100 * 1024 * 1024,

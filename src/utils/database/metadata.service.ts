@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { ProjectFile } from '../../../database/entities/project-file.entity.js';
-import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
+import { ProjectFile } from '../../database/entities/project-file.entity.js';
+import { ProjectVersion } from '../../database/entities/project-version.entity.js';
 
 // Type für die Rückkehrwerte, kompatibel mit dem alten MetaData Typ
 export type ProjectFileInfo = {
