@@ -1,8 +1,8 @@
 import { Controller, Get, Headers, Param, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { Public } from "../../fsarch/auth/decorators/public.decorator.js";
 import handleFile from "../../utils/handleFile.js";
+import { Public } from "@fsarch/server/auth";
 
 @Controller({
   path: '/projects',

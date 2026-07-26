@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../constants/app-constants.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import tar from 'tar';
+import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
 import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
