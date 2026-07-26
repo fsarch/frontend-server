@@ -333,3 +333,5 @@ $RECYCLE.BIN/
 ## CUSTOM
 /data
 /build
+/config/config.yml
+/config/config.yaml
