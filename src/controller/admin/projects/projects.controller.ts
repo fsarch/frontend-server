@@ -16,7 +16,7 @@ import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { Project } from '../../../database/entities/project.entity.js';
 import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
-import { FileService } from '../../../utils/database/file.service.js';
+import { FileService } from '../../../utils/file/file.service.js';
 
 @ApiTags('projects')
 @Controller({

@@ -1,7 +1,7 @@
 import { Controller, Param, Post, Req } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
-import { UploadService } from '../../../../utils/database/upload.service.js';
+import { UploadService } from '../../../../utils/upload/upload.service.js';
 
 @Controller({
   path: '/api/projects/:projectId/versions',

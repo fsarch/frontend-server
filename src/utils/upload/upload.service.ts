@@ -7,9 +7,9 @@ import { lookup as mimeLookup } from 'mime-types';
 import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
 
-import isWithin from '../../utils/isWithin.js';
+import isWithin from '../isWithin.js';
 import { createHash } from 'crypto';
-import { MetadataService } from './metadata.service.js';
+import { MetadataService } from '../metadata/metadata.service.js';
 import { ProjectsService } from '../../controller/admin/projects/projects.service.js';
 
 @Injectable()
