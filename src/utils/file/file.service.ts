@@ -40,7 +40,7 @@ export class FileService {
     path: string;
   } | null> {
     const result = await this.metadataService.findFile(projectId, requestPath);
-    
+
     if (!result) {
       return null;
     }
@@ -84,9 +84,9 @@ export class FileService {
     if (mimeType === 'text/html') {
       res.setHeader('Cache-Control', `public, max-age=0, must-revalidate, stale-if-error=${60 * 60}`);
     } else if (mimeType === 'text/css') {
-      res.setHeader('Cache-Control', `public, max-age=${24 * 60 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
+      res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
     } else if (mimeType === 'text/javascript') {
-      res.setHeader('Cache-Control', `public, max-age=${24 * 60 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
+      res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
     } else {
       res.setHeader('Cache-Control', 'no-cache');
     }
