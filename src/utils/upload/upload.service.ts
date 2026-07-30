@@ -39,7 +39,7 @@ export class UploadService {
     const isTar = contentType.includes('tar') || !isZip;
     const archiveExt = isZip ? '.zip' : '.tar';
     const archiveFile = path.resolve(basePath, `${versionId}${archiveExt}`);
-    
+
     // Save the uploaded file
     await writeFile(archiveFile, req);
 
@@ -52,8 +52,10 @@ export class UploadService {
         await this.extractTar(archiveFile, versionPath, paths);
       }
     } catch (error: any) {
+      console.error(error);
       this.logger.error(`Error extracting ${archiveExt} file:`, {
         error,
+        isZip,
       });
       throw new BadRequestException('Failed to extract archive file');
     }
@@ -106,13 +108,15 @@ export class UploadService {
       // Only process files, skip directories
       if (!entry.isDirectory) {
         const extractPath = path.resolve(targetDir, entry.entryName);
-        
+
         // Ensure parent directory exists
         await mkdir(path.dirname(extractPath), { recursive: true });
-        
+
+        console.log('entry', targetDir, entry.entryName);
+
         // Extract file content
-        zip.extractEntryTo(targetDir, entry.entryName, false, true);
-        
+        zip.extractEntryTo(entry.entryName, targetDir, false, true);
+
         // Normalize path (remove leading ./ and \ and convert to lowercase for lookup)
         const normalizedPath = entry.entryName
           .replace(/^\.\//, '')
