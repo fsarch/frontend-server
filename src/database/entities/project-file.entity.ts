@@ -17,7 +17,7 @@ import { ProjectVersion } from "./project-version.entity.js";
 @Index(["versionId", "hash"], { unique: false })
 export class ProjectFile {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id: string = crypto.randomUUID();
 
   @Column({
     name: "version_id",

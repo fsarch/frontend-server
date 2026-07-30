@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { ProjectFile } from '../../database/entities/project-file.entity.js';
 import { ProjectVersion } from '../../database/entities/project-version.entity.js';
 
@@ -196,7 +196,7 @@ export class MetadataService {
 
     // Finde die neueste Version des Projekts
     const versions = await this.projectVersionRepository.find({
-      where: { projectId, deletionTime: null },
+      where: { projectId, deletionTime: IsNull() },
       order: { creationTime: 'DESC' },
     });
 
@@ -207,7 +207,7 @@ export class MetadataService {
     // Suche Datei in allen Versionen (beginnend mit der neuesten)
     for (const version of versions) {
       const file = await this.projectFileRepository.findOne({
-        where: { versionId: version.id, path: normalizedPath, deletionTime: null },
+        where: { versionId: version.id, path: normalizedPath, deletionTime: IsNull() },
       });
 
       if (file) {
@@ -230,9 +230,9 @@ export class MetadataService {
   /**
    * Erstellt eine neue Version für ein Projekt
    */
-  async createVersion(projectId: string, versionKey: string): Promise<ProjectVersion> {
+  async createVersion(projectId: string, versionId: string): Promise<ProjectVersion> {
     const version = this.projectVersionRepository.create({
-      id: versionKey,
+      id: versionId,
       projectId,
     });
 
@@ -273,7 +273,7 @@ export class MetadataService {
     maxVersionAge: number,
   ): Promise<void> {
     const versions = await this.projectVersionRepository.find({
-      where: { projectId, deletionTime: null },
+      where: { projectId, deletionTime: IsNull() },
       order: { creationTime: 'ASC' },
     });
 

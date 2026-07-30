@@ -82,15 +82,15 @@ export class ProjectsController {
     return this.fileService.handleFile(headers, response, projectId, 'index.html');
   }
 
-  @Get(':projectId/resolve/*')
+  @Get(':projectId/resolve/{*path}')
   @Public()
   async getProjectFile(
     @Param('projectId') projectId: string,
+    @Param('path') pathParts: Array<string>,
     @Param() params: Array<string>,
     @Headers() headers: Record<string, string>,
     @Res() response: Response,
   ): Promise<void> {
-    const resourcePath = params[0] ?? '';
-    return this.fileService.handleFile(headers, response, projectId, resourcePath);
+    return this.fileService.handleFile(headers, response, projectId, pathParts.join('/'));
   }
 }

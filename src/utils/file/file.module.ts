@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileService } from './file.service.js';
 import { ProjectFile } from '../../database/entities/project-file.entity.js';
+import { MetadataModule } from "../metadata/metadata.module.js";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ProjectFile])],
+  imports: [TypeOrmModule.forFeature([ProjectFile]), MetadataModule],
   providers: [FileService],
   exports: [FileService],
 })

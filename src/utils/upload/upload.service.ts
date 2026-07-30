@@ -1,4 +1,4 @@
-import { Injectable, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, forwardRef, Inject, Logger } from '@nestjs/common';
 import path from 'node:path';
 import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../constants/app-constants.js';
 import { mkdir, readFile, writeFile, unlink, rm } from 'node:fs/promises';
@@ -14,6 +14,8 @@ import { ProjectsService } from '../../controller/admin/projects/projects.servic
 
 @Injectable()
 export class UploadService {
+  private readonly logger = new Logger(UploadService.name);
+
   constructor(
     private readonly metadataService: MetadataService,
     @Inject(forwardRef(() => ProjectsService))
@@ -28,15 +30,15 @@ export class UploadService {
     const minutesString = String(now.getUTCMinutes()).padStart(2, '0');
     const secondsString = String(now.getUTCSeconds()).padStart(2, '0');
 
-    const versionKey = `${now.getUTCFullYear()}-${monthString}-${dateString}_${hoursString}:${minutesString}:${secondsString}.${now.getUTCMilliseconds()}`;
+    const versionId = crypto.randomUUID();
 
     const basePath = path.resolve(DATA_PATH, projectId);
-    const versionPath = path.resolve(basePath, versionKey);
+    const versionPath = path.resolve(basePath, versionId);
     await mkdir(versionPath, {
       recursive: true,
     });
 
-    const tarFile = path.resolve(basePath, `${versionKey}.tar`);
+    const tarFile = path.resolve(basePath, `${versionId}.tar`);
     await writeFile(tarFile, req);
 
     let paths: { path: string; size: number; originalPath: string; }[] = [];
@@ -63,7 +65,10 @@ export class UploadService {
           return true;
         },
       });
-    } catch (e: any) {
+    } catch (error: any) {
+      this.logger.error('Error extracting tar file:', {
+        error,
+      });
       throw new BadRequestException();
     }
 
@@ -80,11 +85,11 @@ export class UploadService {
     }
 
     // Erstelle die neue Version in der Datenbank
-    await this.metadataService.createVersion(projectId, versionKey);
+    await this.metadataService.createVersion(projectId, versionId);
 
     // Füge Dateien zur Version hinzu
     for (const [filePath, fileInfo] of Object.entries(files)) {
-      await this.metadataService.addFileToVersion(versionKey, {
+      await this.metadataService.addFileToVersion(versionId, {
         path: filePath,
         originalPath: fileInfo.path,
         hash: fileInfo.hash,
@@ -94,7 +99,7 @@ export class UploadService {
     }
 
     // Setze die aktuelle Version
-    await this.projectsService.setCurrentVersion(projectId, versionKey);
+    await this.projectsService.setCurrentVersion(projectId, versionId);
 
     // Bereinge alte Versionen
     await this.metadataService.markOldVersionsForDeletion(
@@ -104,7 +109,7 @@ export class UploadService {
     );
 
     // Lösche alte Versionen Dateien vom Dateisystem
-    await this.cleanupOldVersionFiles(projectId, versionKey);
+    await this.cleanupOldVersionFiles(projectId, versionId);
   }
 
   private async cleanupOldVersionFiles(projectId: string, currentVersionKey: string): Promise<void> {

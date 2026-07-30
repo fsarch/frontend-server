@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity.js';
 import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
 import { ProjectFile } from '../../../database/entities/project-file.entity.js';
@@ -17,6 +17,7 @@ export class ProjectsService {
 
   async createProject(dto: CreateProjectDto): Promise<Project> {
     const project = this.projectRepository.create({
+      id: crypto.randomUUID(),
       name: dto.name,
       description: dto.description,
     });
@@ -26,14 +27,14 @@ export class ProjectsService {
 
   async findAllProjects(): Promise<Project[]> {
     return await this.projectRepository.find({
-      where: { deletionTime: null },
+      where: { deletionTime: IsNull() },
       order: { creationTime: 'DESC' },
     });
   }
 
   async findProjectById(id: string): Promise<Project | null> {
     return await this.projectRepository.findOne({
-      where: { id, deletionTime: null },
+      where: { id, deletionTime: IsNull() },
     });
   }
 
@@ -46,7 +47,7 @@ export class ProjectsService {
     return await this.projectVersionRepository.find({
       where: {
         projectId: project.id,
-        deletionTime: null,
+        deletionTime: IsNull(),
       },
       order: { creationTime: 'DESC' },
     });
@@ -54,7 +55,7 @@ export class ProjectsService {
 
   async getAllVersions(): Promise<ProjectVersion[]> {
     return await this.projectVersionRepository.find({
-      where: { deletionTime: null },
+      where: { deletionTime: IsNull() },
       order: { creationTime: 'DESC' },
     });
   }
@@ -66,7 +67,7 @@ export class ProjectsService {
     }
 
     const version = await this.projectVersionRepository.findOne({
-      where: { id: versionId, projectId: project.id, deletionTime: null },
+      where: { id: versionId, projectId: project.id, deletionTime: IsNull() },
     });
 
     if (!version) {
