@@ -6,6 +6,8 @@ import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
 import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
+import AdmZip from 'adm-zip';
+import { randomUUID } from 'node:crypto';
 
 import isWithin from '../isWithin.js';
 import { createHash } from 'crypto';
@@ -23,14 +25,7 @@ export class UploadService {
   ) {}
 
   async handleUpload(req: Request, projectId: string): Promise<void> {
-    const now = new Date();
-    const monthString = String(now.getUTCMonth()).padStart(2, '0');
-    const dateString = String(now.getUTCDate()).padStart(2, '0');
-    const hoursString = String(now.getUTCHours()).padStart(2, '0');
-    const minutesString = String(now.getUTCMinutes()).padStart(2, '0');
-    const secondsString = String(now.getUTCSeconds()).padStart(2, '0');
-
-    const versionId = crypto.randomUUID();
+    const versionId = randomUUID();
 
     const basePath = path.resolve(DATA_PATH, projectId);
     const versionPath = path.resolve(basePath, versionId);
@@ -38,38 +33,29 @@ export class UploadService {
       recursive: true,
     });
 
-    const tarFile = path.resolve(basePath, `${versionId}.tar`);
-    await writeFile(tarFile, req);
+    // Determine archive type from content-type header or fallback to .tar
+    const contentType = (req.headers['content-type'] || '').toLowerCase();
+    const isZip = contentType.includes('zip');
+    const isTar = contentType.includes('tar') || !isZip;
+    const archiveExt = isZip ? '.zip' : '.tar';
+    const archiveFile = path.resolve(basePath, `${versionId}${archiveExt}`);
+    
+    // Save the uploaded file
+    await writeFile(archiveFile, req);
 
     let paths: { path: string; size: number; originalPath: string; }[] = [];
 
     try {
-      await tar.x({
-        file: tarFile,
-        cwd: versionPath,
-        filter: (path, stat) => {
-          if (!isWithin(versionPath, path)) {
-            return false;
-          }
-
-          if ((stat as any).type === 'File') {
-            const normalizedPath = path.startsWith('./') ? path.substring(2) : path;
-
-            paths.push({
-              path: normalizedPath.toLowerCase(),
-              originalPath: normalizedPath,
-              size: stat.size,
-            });
-          }
-
-          return true;
-        },
-      });
+      if (isZip) {
+        await this.extractZip(archiveFile, versionPath, paths);
+      } else {
+        await this.extractTar(archiveFile, versionPath, paths);
+      }
     } catch (error: any) {
-      this.logger.error('Error extracting tar file:', {
+      this.logger.error(`Error extracting ${archiveExt} file:`, {
         error,
       });
-      throw new BadRequestException();
+      throw new BadRequestException('Failed to extract archive file');
     }
 
     const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
@@ -112,6 +98,59 @@ export class UploadService {
     await this.cleanupOldVersionFiles(projectId, versionId);
   }
 
+  private async extractZip(zipPath: string, targetDir: string, paths: { path: string; size: number; originalPath: string; }[]): Promise<void> {
+    const zip = new AdmZip(zipPath);
+    const zipEntries = zip.getEntries();
+
+    for (const entry of zipEntries) {
+      // Only process files, skip directories
+      if (!entry.isDirectory) {
+        const extractPath = path.resolve(targetDir, entry.entryName);
+        
+        // Ensure parent directory exists
+        await mkdir(path.dirname(extractPath), { recursive: true });
+        
+        // Extract file content
+        zip.extractEntryTo(targetDir, entry.entryName, false, true);
+        
+        // Normalize path (remove leading ./ and \ and convert to lowercase for lookup)
+        const normalizedPath = entry.entryName
+          .replace(/^\.\//, '')
+          .replace(/\\/g, '/');
+
+        paths.push({
+          path: normalizedPath.toLowerCase(),
+          originalPath: normalizedPath,
+          size: entry.header.size,
+        });
+      }
+    }
+  }
+
+  private async extractTar(tarPath: string, targetDir: string, paths: { path: string; size: number; originalPath: string; }[]): Promise<void> {
+    await tar.x({
+      file: tarPath,
+      cwd: targetDir,
+      filter: (filePath, stat) => {
+        if (!isWithin(targetDir, filePath)) {
+          return false;
+        }
+
+        if ((stat as any).type === 'File') {
+          const normalizedPath = filePath.startsWith('./') ? filePath.substring(2) : filePath;
+
+          paths.push({
+            path: normalizedPath.toLowerCase(),
+            originalPath: normalizedPath,
+            size: stat.size,
+          });
+        }
+
+        return true;
+      },
+    });
+  }
+
   private async cleanupOldVersionFiles(projectId: string, currentVersionKey: string): Promise<void> {
     // Hole alle Versionen
     const versions = await this.projectsService.getProjectVersions(projectId);
@@ -127,6 +166,16 @@ export class UploadService {
       } catch (e: any) {
         if (e?.code !== 'ENOENT') {
           console.error(`Error deleting tar file for version ${version.id}:`, e);
+        }
+      }
+
+      try {
+        // Lösche .zip Datei
+        const zipFile = path.resolve(DATA_PATH, projectId, `${version.id}.zip`);
+        await unlink(zipFile);
+      } catch (e: any) {
+        if (e?.code !== 'ENOENT') {
+          console.error(`Error deleting zip file for version ${version.id}:`, e);
         }
       }
 
