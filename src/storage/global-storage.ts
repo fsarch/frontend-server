@@ -1,12 +1,10 @@
 import { IStorageProvider } from './storage-provider.interface.js';
 import { StorageProviderFactory } from './storage-provider.factory.js';
 import { StorageConfig } from './storage-config.types.js';
-import { readFileSync } from 'fs';
-import * as yaml from 'js-yaml';
-import { resolve } from 'node:path';
+import { Inject, Injectable } from '@nestjs/common';
+import { STORAGE_CONFIG_TOKEN } from './storage-configuration.module.js';
+import { ModuleConfigurationService } from '@fsarch/server/configuration';
 import * as path from 'node:path';
-
-const YAML_CONFIG_FILENAME = 'config.yaml';
 
 // Global storage provider instance
 // This is initialized on first use and used by utility functions
@@ -14,35 +12,39 @@ const YAML_CONFIG_FILENAME = 'config.yaml';
 let globalStorageProvider: IStorageProvider | null = null;
 let globalDataPath: string = './data';
 
-/**
- * Initialize the global storage provider
- * This should be called during application startup
- */
-export function initializeGlobalStorage(): void {
-  try {
-    const configPath = resolve(process.cwd(), process.env.CONFIG_FILE_PATH || YAML_CONFIG_FILENAME);
-    const config = yaml.load(readFileSync(configPath, 'utf8')) as Record<string, any>;
-    
-    const storageConfig = config.storage?.data;
-    
-    if (storageConfig) {
+@Injectable()
+export class GlobalStorageService {
+  constructor(
+    @Inject(STORAGE_CONFIG_TOKEN)
+    private configService: ModuleConfigurationService<any>,
+  ) {}
+
+  getStorageProvider(): IStorageProvider {
+    if (!globalStorageProvider) {
+      const storageConfig = this.configService.get();
+      globalStorageProvider = StorageProviderFactory.create(storageConfig);
+      
       // Set global data path for backward compatibility
       if (typeof storageConfig === 'string') {
         globalDataPath = storageConfig;
       } else if (storageConfig.type === 'filesystem') {
         globalDataPath = storageConfig.config.path;
       } else if (storageConfig.type === 's3') {
-        globalDataPath = './data'; // For S3, we still need a local path for some operations
+        globalDataPath = './data';
       }
-      
-      // Create storage provider
-      globalStorageProvider = StorageProviderFactory.create(storageConfig);
     }
-  } catch (error) {
-    console.warn('Failed to initialize global storage provider:', error);
-    // Fallback to default filesystem storage
-    globalDataPath = process.env.DATA_PATH || './data';
+    return globalStorageProvider;
   }
+}
+
+/**
+ * Initialize the global storage provider
+ * Uses fsarch ModuleConfigurationService instead of manual file loading
+ */
+export function initializeGlobalStorage(): void {
+  // The StorageModule already initializes the provider via DI
+  // This function is kept for backward compatibility
+  // The actual initialization happens in GlobalStorageService
 }
 
 /**
@@ -50,10 +52,9 @@ export function initializeGlobalStorage(): void {
  */
 export function getGlobalStorageProvider(): IStorageProvider {
   if (!globalStorageProvider) {
-    initializeGlobalStorage();
-  }
-  if (!globalStorageProvider) {
-    // Fallback to filesystem provider
+    // Fallback for cases where DI is not available
+    // This should not happen in normal application flow
+    console.warn('Global storage provider not initialized via DI. Using fallback.');
     globalStorageProvider = StorageProviderFactory.create('./data');
   }
   return globalStorageProvider;

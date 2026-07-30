@@ -1,0 +1,1 @@
+export const STORAGE_CONFIG_TOKEN = Symbol('STORAGE_CONFIG');
