@@ -2,14 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { Response } from 'express';
-import * as fs from 'fs';
 import LRUCache from 'lru-cache';
-import { readFile } from 'node:fs/promises';
 import { lookup as mimeLookup } from 'mime-types';
 import path from 'node:path';
-import { DATA_PATH } from '../../constants/app-constants.js';
 import { MetadataService, ProjectFileInfo } from '../metadata/metadata.service.js';
 import { ProjectFile } from '../../database/entities/project-file.entity.js';
+import { StorageService } from '../../storage/storage.service.js';
+import { Readable } from 'stream';
 
 const CACHE = new LRUCache<string, Buffer>({
   maxSize: 100 * 1024 * 1024,
@@ -26,6 +25,7 @@ export class FileService {
     private readonly metadataService: MetadataService,
     @InjectRepository(ProjectFile)
     private readonly projectFileRepository: Repository<ProjectFile>,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -45,10 +45,11 @@ export class FileService {
       return null;
     }
 
+    // Use relative path for storage provider
     return {
       file: result.file,
       version: result.version,
-      path: path.resolve(DATA_PATH, projectId, result.version, result.file.path),
+      path: `${projectId}/${result.version}/${result.file.path}`,
     };
   }
 
@@ -96,7 +97,7 @@ export class FileService {
 
     if (foundFile.file.size > 5 * 1024 * 1024) {
       // Stream file when size is bigger than 5 MB
-      const contentStream = fs.createReadStream(foundFile.path);
+      const contentStream = await this.storageService.createReadStream(foundFile.path);
 
       contentStream.on('end', () => {
         res.statusCode = 200;
@@ -121,7 +122,7 @@ export class FileService {
     }
 
     try {
-      const content = await readFile(foundFile.path);
+      const content = await this.storageService.readFile(foundFile.path);
       CACHE.set(foundFile.path, content);
 
       res.statusCode = 200;

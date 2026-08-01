@@ -1,127 +1,161 @@
 import { Injectable, forwardRef, Inject, Logger } from '@nestjs/common';
 import path from 'node:path';
-import { DATA_PATH, MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../constants/app-constants.js';
-import { mkdir, readFile, writeFile, unlink, rm } from 'node:fs/promises';
+import { MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../constants/app-constants.js';
 import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
 import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
 import AdmZip from 'adm-zip';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'os';
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 
 import isWithin from '../isWithin.js';
 import { createHash } from 'crypto';
 import { MetadataService } from '../metadata/metadata.service.js';
 import { ProjectsService } from '../../controller/admin/projects/projects.service.js';
+import { StorageService } from '../../storage/storage.service.js';
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
+  private tempBaseDir: string;
 
   constructor(
     private readonly metadataService: MetadataService,
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
-  ) {}
+    private readonly storageService: StorageService,
+  ) {
+    this.tempBaseDir = path.join(tmpdir(), 'frontend-server-uploads');
+  }
+
+  /**
+   * Create a temporary directory for extraction
+   */
+  private async createTempDir(): Promise<string> {
+    await mkdir(this.tempBaseDir, { recursive: true });
+    const tempDir = path.join(this.tempBaseDir, randomUUID());
+    await mkdir(tempDir, { recursive: true });
+    return tempDir;
+  }
+
+  /**
+   * Cleanup temporary directory
+   */
+  private async cleanupTempDir(tempDir: string): Promise<void> {
+    try {
+      await rm(tempDir, { recursive: true });
+    } catch (error) {
+      console.warn(`Failed to cleanup temp dir ${tempDir}:`, error);
+    }
+  }
 
   async handleUpload(req: Request, projectId: string): Promise<void> {
     const versionId = randomUUID();
-
-    const basePath = path.resolve(DATA_PATH, projectId);
-    const versionPath = path.resolve(basePath, versionId);
-    await mkdir(versionPath, {
-      recursive: true,
-    });
-
-    // Determine archive type from content-type header or fallback to .tar
-    const contentType = (req.headers['content-type'] || '').toLowerCase();
-    const isZip = contentType.includes('zip');
-    const isTar = contentType.includes('tar') || !isZip;
-    const archiveExt = isZip ? '.zip' : '.tar';
-    const archiveFile = path.resolve(basePath, `${versionId}${archiveExt}`);
-
-    // Save the uploaded file
-    await writeFile(archiveFile, req);
-
-    let paths: { path: string; size: number; originalPath: string; }[] = [];
-
+    
+    // Create temp directory for extraction
+    const tempDir = await this.createTempDir();
+    
     try {
+      // Determine archive type from content-type header or fallback to .tar
+      const contentType = (req.headers['content-type'] || '').toLowerCase();
+      const isZip = contentType.includes('zip');
+      const archiveExt = isZip ? '.zip' : '.tar';
+      const archiveFile = path.join(tempDir, `${versionId}${archiveExt}`);
+      
+      // Save archive to temp directory
+      const archiveBuffer = await this.streamToBuffer(req);
+      await writeFile(archiveFile, archiveBuffer);
+      
+      // Extract to temp directory
+      const versionPath = path.join(tempDir, versionId);
+      await mkdir(versionPath, { recursive: true });
+      
+      let paths: { path: string; size: number; originalPath: string; }[] = [];
+      
       if (isZip) {
         await this.extractZip(archiveFile, versionPath, paths);
       } else {
         await this.extractTar(archiveFile, versionPath, paths);
       }
-    } catch (error: any) {
-      console.error(error);
-      this.logger.error(`Error extracting ${archiveExt} file:`, {
-        error,
-        isZip,
-      });
-      throw new BadRequestException('Failed to extract archive file');
+      
+      // Copy extracted files to storage provider
+      const storageBasePath = `${projectId}/${versionId}`;
+      await this.copyToStorage(versionPath, storageBasePath, paths);
+      
+      // Create metadata
+      await this.metadataService.createVersion(projectId, versionId);
+      
+      const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
+      for (let i = 0, z = paths.length; i < z; i += 1) {
+        const filePath = `${storageBasePath}/${paths[i].originalPath}`;
+        const content = await this.storageService.readFile(filePath);
+        const hash = createHash('md5').update(content).digest('base64');
+        files[paths[i].path] = {
+          hash,
+          size: paths[i].size,
+          mime: mimeLookup(paths[i].path) || 'application/octet-stream',
+          path: paths[i].originalPath,
+        };
+      }
+
+      // Add files to version
+      for (const [filePath, fileInfo] of Object.entries(files)) {
+        await this.metadataService.addFileToVersion(versionId, {
+          path: filePath,
+          originalPath: fileInfo.path,
+          hash: fileInfo.hash,
+          size: fileInfo.size,
+          mime: fileInfo.mime,
+        });
+      }
+
+      // Set current version
+      await this.projectsService.setCurrentVersion(projectId, versionId);
+
+      // Mark old versions for deletion
+      await this.metadataService.markOldVersionsForDeletion(
+        projectId,
+        MAX_VERSION_COUNT,
+        MAX_VERSION_AGE,
+      );
+
+      // Cleanup old version files from storage
+      await this.cleanupOldVersionFiles(projectId, versionId);
+      
+    } finally {
+      // Always cleanup temp directory, even if an error occurred
+      await this.cleanupTempDir(tempDir);
     }
-
-    const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
-    for (let i = 0, z = paths.length; i < z; i += 1) {
-      const content = await readFile(path.resolve(versionPath, `./${paths[i].originalPath}`));
-      const hash = createHash('md5').update(content).digest('base64');
-      files[paths[i].path] = {
-        hash,
-        size: paths[i].size,
-        mime: mimeLookup(paths[i].path) || 'application/octet-stream',
-        path: paths[i].originalPath,
-      };
-    }
-
-    // Erstelle die neue Version in der Datenbank
-    await this.metadataService.createVersion(projectId, versionId);
-
-    // Füge Dateien zur Version hinzu
-    for (const [filePath, fileInfo] of Object.entries(files)) {
-      await this.metadataService.addFileToVersion(versionId, {
-        path: filePath,
-        originalPath: fileInfo.path,
-        hash: fileInfo.hash,
-        size: fileInfo.size,
-        mime: fileInfo.mime,
-      });
-    }
-
-    // Setze die aktuelle Version
-    await this.projectsService.setCurrentVersion(projectId, versionId);
-
-    // Bereinge alte Versionen
-    await this.metadataService.markOldVersionsForDeletion(
-      projectId,
-      MAX_VERSION_COUNT,
-      MAX_VERSION_AGE,
-    );
-
-    // Lösche alte Versionen Dateien vom Dateisystem
-    await this.cleanupOldVersionFiles(projectId, versionId);
   }
 
-  private async extractZip(zipPath: string, targetDir: string, paths: { path: string; size: number; originalPath: string; }[]): Promise<void> {
+  /**
+   * Extract ZIP archive to temp directory
+   */
+  private async extractZip(
+    zipPath: string,
+    targetDir: string,
+    paths: { path: string; size: number; originalPath: string; }[]
+  ): Promise<void> {
     const zip = new AdmZip(zipPath);
     const zipEntries = zip.getEntries();
 
     for (const entry of zipEntries) {
-      // Only process files, skip directories
       if (!entry.isDirectory) {
-        const extractPath = path.resolve(targetDir, entry.entryName);
-
+        const extractPath = path.join(targetDir, entry.entryName);
+        
         // Ensure parent directory exists
         await mkdir(path.dirname(extractPath), { recursive: true });
-
-        console.log('entry', targetDir, entry.entryName);
-
+        
         // Extract file content
         zip.extractEntryTo(entry.entryName, targetDir, false, true);
-
+        
         // Normalize path (remove leading ./ and \ and convert to lowercase for lookup)
         const normalizedPath = entry.entryName
           .replace(/^\.\//, '')
           .replace(/\\/g, '/');
-
+        
         paths.push({
           path: normalizedPath.toLowerCase(),
           originalPath: normalizedPath,
@@ -131,7 +165,14 @@ export class UploadService {
     }
   }
 
-  private async extractTar(tarPath: string, targetDir: string, paths: { path: string; size: number; originalPath: string; }[]): Promise<void> {
+  /**
+   * Extract TAR archive to temp directory
+   */
+  private async extractTar(
+    tarPath: string,
+    targetDir: string,
+    paths: { path: string; size: number; originalPath: string; }[]
+  ): Promise<void> {
     await tar.x({
       file: tarPath,
       cwd: targetDir,
@@ -142,59 +183,78 @@ export class UploadService {
 
         if ((stat as any).type === 'File') {
           const normalizedPath = filePath.startsWith('./') ? filePath.substring(2) : filePath;
-
+          
           paths.push({
             path: normalizedPath.toLowerCase(),
             originalPath: normalizedPath,
             size: stat.size,
           });
         }
-
+        
         return true;
       },
     });
   }
 
-  private async cleanupOldVersionFiles(projectId: string, currentVersionKey: string): Promise<void> {
-    // Hole alle Versionen
-    const versions = await this.projectsService.getProjectVersions(projectId);
+  /**
+   * Copy extracted files from temp directory to storage provider
+   */
+  private async copyToStorage(
+    tempDir: string,
+    storageBasePath: string,
+    paths: { path: string; size: number; originalPath: string; }[]
+  ): Promise<void> {
+    for (const fileInfo of paths) {
+      const tempFilePath = path.join(tempDir, fileInfo.originalPath);
+      const storageFilePath = `${storageBasePath}/${fileInfo.originalPath}`;
+      
+      // Ensure parent directory exists in storage
+      const parentDir = storageFilePath.substring(0, storageFilePath.lastIndexOf('/'));
+      await this.storageService.mkdir(parentDir, { recursive: true });
+      
+      // Read from temp and write to storage
+      const content = await readFile(tempFilePath);
+      await this.storageService.writeFile(storageFilePath, content);
+    }
+  }
 
-    // Finde Versionen, die in der Datenbank als gelöscht markiert sind
+  /**
+   * Cleanup old version files from storage
+   */
+  private async cleanupOldVersionFiles(projectId: string, currentVersionKey: string): Promise<void> {
+    const versions = await this.projectsService.getProjectVersions(projectId);
     const versionsToDelete = versions.filter(v => v.deletionTime !== null && v.id !== currentVersionKey);
 
     for (const version of versionsToDelete) {
       try {
-        // Lösche .tar Datei
-        const tarFile = path.resolve(DATA_PATH, projectId, `${version.id}.tar`);
-        await unlink(tarFile);
+        // Delete all files in the version directory from storage
+        const storageFiles = await this.storageService.listFiles(`${projectId}/${version.id}`);
+        for (const filePath of storageFiles) {
+          await this.storageService.deleteFile(filePath);
+        }
+        
+        // Delete archive files from storage
+        await this.storageService.deleteFile(`${projectId}/${version.id}.tar`);
+        await this.storageService.deleteFile(`${projectId}/${version.id}.zip`);
       } catch (e: any) {
-        if (e?.code !== 'ENOENT') {
-          console.error(`Error deleting tar file for version ${version.id}:`, e);
+        if (e?.code !== 'ENOENT' && e?.code !== 'NoSuchKey') {
+          console.error(`Error deleting files for version ${version.id}:`, e);
         }
       }
-
-      try {
-        // Lösche .zip Datei
-        const zipFile = path.resolve(DATA_PATH, projectId, `${version.id}.zip`);
-        await unlink(zipFile);
-      } catch (e: any) {
-        if (e?.code !== 'ENOENT') {
-          console.error(`Error deleting zip file for version ${version.id}:`, e);
-        }
-      }
-
-      try {
-        // Lösche Verzeichnis
-        const versionDir = path.resolve(DATA_PATH, projectId, version.id);
-        await rm(versionDir, { recursive: true });
-      } catch (e: any) {
-        if (e?.code !== 'ENOENT') {
-          console.error(`Error deleting directory for version ${version.id}:`, e);
-        }
-      }
-
-      // Lösche aus der Datenbank
+      
+      // Delete from database
       await this.metadataService.deleteVersion(version.id);
     }
+  }
+
+  /**
+   * Helper method to convert a Request stream to Buffer
+   */
+  private async streamToBuffer(req: Request): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }

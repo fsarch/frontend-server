@@ -6,8 +6,10 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { StorageConfigS3 } from './storage-config.types.js';
+import { Readable } from 'stream';
 
 @Injectable()
 export class S3StorageProvider implements IStorageProvider {
@@ -97,5 +99,58 @@ export class S3StorageProvider implements IStorageProvider {
     });
 
     await this.client.send(command);
+  }
+
+  async createReadStream(path: string): Promise<Readable> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: this.getS3Key(path),
+    });
+
+    const response = await this.client.send(command);
+    const stream = response.Body as Readable;
+
+    if (!stream) {
+      throw new Error('No body in S3 response');
+    }
+
+    return stream;
+  }
+
+  async listFiles(prefix: string): Promise<string[]> {
+    const s3Prefix = this.getS3Key(prefix);
+    const files: string[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: s3Prefix,
+        ContinuationToken: continuationToken,
+      });
+
+      const response = await this.client.send(command);
+      continuationToken = response.NextContinuationToken;
+
+      if (response.Contents) {
+        for (const obj of response.Contents) {
+          if (obj.Key) {
+            // Remove the prefix and s3 prefix to get the relative path
+            let relativePath = obj.Key;
+            if (this.prefix && relativePath.startsWith(this.prefix)) {
+              relativePath = relativePath.substring(this.prefix.length + 1);
+            }
+            if (relativePath.startsWith(prefix)) {
+              relativePath = relativePath.substring(prefix.length + 1);
+            }
+            if (relativePath) {
+              files.push(relativePath);
+            }
+          }
+        }
+      }
+    } while (continuationToken);
+
+    return files;
   }
 }
