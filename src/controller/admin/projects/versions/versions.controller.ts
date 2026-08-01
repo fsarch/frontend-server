@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
 import { UploadService } from '../../../../utils/upload/upload.service.js';
 
 @Controller({
-  path: '/api/projects/:projectId/versions',
+  path: '/projects/:projectId/versions',
   version: '1',
 })
 @ApiTags('projects')

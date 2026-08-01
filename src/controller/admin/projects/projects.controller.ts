@@ -20,7 +20,7 @@ import { FileService } from '../../../utils/file/file.service.js';
 
 @ApiTags('projects')
 @Controller({
-  path: '/api/projects',
+  path: '/projects',
   version: '1',
 })
 export class ProjectsController {
