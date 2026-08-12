@@ -53,18 +53,29 @@ export class UploadService {
 
   async handleUpload(req: Request, projectId: string): Promise<void> {
     const versionId = randomUUID();
-    
+
+    this.logger.log(`Received upload request for project ${projectId}, assigned version ${versionId}`, {
+      projectId,
+      versionId,
+      contentType: req.headers['content-type'],
+      contentLength: req.headers['content-length'],
+    });
+
     // Create temp directory for extraction
     const tempDir = await this.createTempDir();
-    
+
     try {
       // Determine archive type from content-type header or fallback to .tar
       const contentType = (req.headers['content-type'] || '').toLowerCase();
       const isZip = contentType.includes('zip');
       const archiveExt = isZip ? '.zip' : '.tar';
       const archiveFile = path.join(tempDir, `${versionId}${archiveExt}`);
-      
+
       // Save archive to temp directory
+      this.logger.log(`Buffering request body for project ${projectId}, version ${versionId}`, {
+        projectId,
+        versionId,
+      });
       const archiveBuffer = await this.streamToBuffer(req);
       await writeFile(archiveFile, archiveBuffer);
       
@@ -73,13 +84,27 @@ export class UploadService {
       await mkdir(versionPath, { recursive: true });
       
       let paths: { path: string; size: number; originalPath: string; }[] = [];
-      
+
+      this.logger.log(`Starting extraction of ${archiveExt} archive for project ${projectId}, version ${versionId}`, {
+        projectId,
+        versionId,
+        isZip,
+        archiveSize: archiveBuffer.length,
+      });
+
       if (isZip) {
         await this.extractZip(archiveFile, versionPath, paths);
       } else {
         await this.extractTar(archiveFile, versionPath, paths);
       }
-      
+
+      this.logger.log(`Finished extraction for project ${projectId}, version ${versionId}: ${paths.length} file(s) found`, {
+        projectId,
+        versionId,
+        fileCount: paths.length,
+        paths: paths.map((p) => p.originalPath),
+      });
+
       // Copy extracted files to storage provider
       const storageBasePath = `${projectId}/${versionId}`;
       await this.copyToStorage(versionPath, storageBasePath, paths);
