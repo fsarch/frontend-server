@@ -13,7 +13,13 @@ export class VersionsController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post()
-  @ApiConsumes('application/octet-stream', 'application/zip', 'application/x-tar')
+  @ApiConsumes(
+    'application/octet-stream',
+    'application/zip',
+    'application/x-tar',
+    'application/gzip',
+    'application/x-gzip',
+  )
   public async uploadVersion(
     @Param('projectId') projectId: string,
     @Req() request: Request,

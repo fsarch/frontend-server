@@ -65,10 +65,15 @@ export class UploadService {
     const tempDir = await this.createTempDir();
 
     try {
-      // Determine archive type from content-type header or fallback to .tar
+      // Determine archive type from content-type header, falling back to .tar.
+      // Note: gzip content-types (e.g. "application/gzip", "application/x-gzip")
+      // contain the substring "zip", so gzip must be checked before zip.
       const contentType = (req.headers['content-type'] || '').toLowerCase();
-      const isZip = contentType.includes('zip');
-      const archiveExt = isZip ? '.zip' : '.tar';
+      const isGzip = contentType.includes('gzip') || contentType.includes('gz');
+      const isZip = !isGzip && contentType.includes('zip');
+      // tar.x() auto-detects gzip-compressed tarballs, so .tar and .tar.gz
+      // both go through extractTar() - only the temp filename differs.
+      const archiveExt = isZip ? '.zip' : isGzip ? '.tar.gz' : '.tar';
       const archiveFile = path.join(tempDir, `${versionId}${archiveExt}`);
 
       // Save archive to temp directory
