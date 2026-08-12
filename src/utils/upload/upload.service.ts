@@ -110,18 +110,22 @@ export class UploadService {
         paths: paths.map((p) => p.originalPath),
       });
 
-      // Copy extracted files to storage provider
+      // Copy extracted files to storage provider, hashing each file's
+      // content as it is read from the temp dir the first time - avoids
+      // reading every file back from the storage provider afterwards.
       const storageBasePath = `${projectId}/${versionId}`;
-      await this.copyToStorage(versionPath, storageBasePath, paths);
-      
+      const hashes = await this.copyToStorage(versionPath, storageBasePath, paths);
+
       // Create metadata
       await this.metadataService.createVersion(projectId, versionId);
-      
+
       const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
       for (let i = 0, z = paths.length; i < z; i += 1) {
-        const filePath = `${storageBasePath}/${paths[i].originalPath}`;
-        const content = await this.storageService.readFile(filePath);
-        const hash = createHash('md5').update(content).digest('base64');
+        const hash = hashes.get(paths[i].originalPath);
+        if (!hash) {
+          throw new Error(`Missing hash for file ${paths[i].originalPath}`);
+        }
+
         files[paths[i].path] = {
           hash,
           size: paths[i].size,
@@ -227,25 +231,33 @@ export class UploadService {
   }
 
   /**
-   * Copy extracted files from temp directory to storage provider
+   * Copy extracted files from temp directory to storage provider.
+   * Hashes each file's content while it is read from the temp dir, so
+   * callers don't have to read it back from the storage provider again
+   * just to compute the hash.
    */
   private async copyToStorage(
     tempDir: string,
     storageBasePath: string,
     paths: { path: string; size: number; originalPath: string; }[]
-  ): Promise<void> {
+  ): Promise<Map<string, string>> {
+    const hashes = new Map<string, string>();
+
     for (const fileInfo of paths) {
       const tempFilePath = path.join(tempDir, fileInfo.originalPath);
       const storageFilePath = `${storageBasePath}/${fileInfo.originalPath}`;
-      
+
       // Ensure parent directory exists in storage
       const parentDir = storageFilePath.substring(0, storageFilePath.lastIndexOf('/'));
       await this.storageService.mkdir(parentDir, { recursive: true });
-      
-      // Read from temp and write to storage
+
+      // Read from temp once, hash the content while we have it, then write to storage
       const content = await readFile(tempFilePath);
+      hashes.set(fileInfo.originalPath, createHash('md5').update(content).digest('base64'));
       await this.storageService.writeFile(storageFilePath, content);
     }
+
+    return hashes;
   }
 
   /**
