@@ -1,9 +1,8 @@
 import { Injectable, forwardRef, Inject, Logger } from '@nestjs/common';
 import path from 'node:path';
-import { MAX_VERSION_AGE, MAX_VERSION_COUNT } from '../../constants/app-constants.js';
+import { MAX_VERSION_AGE, MAX_VERSION_COUNT, UPLOAD_CONCURRENCY } from '../../constants/app-constants.js';
 import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
-import { BadRequestException } from "@nestjs/common";
 import { Request } from 'express';
 import AdmZip from 'adm-zip';
 import { randomUUID } from 'node:crypto';
@@ -11,6 +10,7 @@ import { tmpdir } from 'os';
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 
 import isWithin from '../isWithin.js';
+import mapWithConcurrency from '../mapWithConcurrency.js';
 import { createHash } from 'crypto';
 import { MetadataService } from '../metadata/metadata.service.js';
 import { ProjectsService } from '../../controller/admin/projects/projects.service.js';
@@ -83,11 +83,11 @@ export class UploadService {
       });
       const archiveBuffer = await this.streamToBuffer(req);
       await writeFile(archiveFile, archiveBuffer);
-      
+
       // Extract to temp directory
       const versionPath = path.join(tempDir, versionId);
       await mkdir(versionPath, { recursive: true });
-      
+
       let paths: { path: string; size: number; originalPath: string; }[] = [];
 
       this.logger.log(`Starting extraction of ${archiveExt} archive for project ${projectId}, version ${versionId}`, {
@@ -134,8 +134,9 @@ export class UploadService {
         };
       }
 
-      // Add files to version
-      for (const [filePath, fileInfo] of Object.entries(files)) {
+      // Add files to version - up to UPLOAD_CONCURRENCY at a time, next one
+      // starts as soon as a slot frees up
+      await mapWithConcurrency(Object.entries(files), UPLOAD_CONCURRENCY, async ([filePath, fileInfo]) => {
         await this.metadataService.addFileToVersion(versionId, {
           path: filePath,
           originalPath: fileInfo.path,
@@ -143,7 +144,7 @@ export class UploadService {
           size: fileInfo.size,
           mime: fileInfo.mime,
         });
-      }
+      });
 
       // Set current version
       await this.projectsService.setCurrentVersion(projectId, versionId);
@@ -157,7 +158,7 @@ export class UploadService {
 
       // Cleanup old version files from storage
       await this.cleanupOldVersionFiles(projectId, versionId);
-      
+
     } finally {
       // Always cleanup temp directory, even if an error occurred
       await this.cleanupTempDir(tempDir);
@@ -178,18 +179,18 @@ export class UploadService {
     for (const entry of zipEntries) {
       if (!entry.isDirectory) {
         const extractPath = path.join(targetDir, entry.entryName);
-        
+
         // Ensure parent directory exists
         await mkdir(path.dirname(extractPath), { recursive: true });
-        
+
         // Extract file content
         zip.extractEntryTo(entry.entryName, targetDir, false, true);
-        
+
         // Normalize path (remove leading ./ and \ and convert to lowercase for lookup)
         const normalizedPath = entry.entryName
           .replace(/^\.\//, '')
           .replace(/\\/g, '/');
-        
+
         paths.push({
           path: normalizedPath.toLowerCase(),
           originalPath: normalizedPath,
@@ -217,14 +218,14 @@ export class UploadService {
 
         if ((stat as any).type === 'File') {
           const normalizedPath = filePath.startsWith('./') ? filePath.substring(2) : filePath;
-          
+
           paths.push({
             path: normalizedPath.toLowerCase(),
             originalPath: normalizedPath,
             size: stat.size,
           });
         }
-        
+
         return true;
       },
     });
@@ -243,7 +244,9 @@ export class UploadService {
   ): Promise<Map<string, string>> {
     const hashes = new Map<string, string>();
 
-    for (const fileInfo of paths) {
+    // Up to UPLOAD_CONCURRENCY files in flight at once; as soon as one
+    // finishes copying, the next queued file starts.
+    await mapWithConcurrency(paths, UPLOAD_CONCURRENCY, async (fileInfo) => {
       const tempFilePath = path.join(tempDir, fileInfo.originalPath);
       const storageFilePath = `${storageBasePath}/${fileInfo.originalPath}`;
 
@@ -255,7 +258,7 @@ export class UploadService {
       const content = await readFile(tempFilePath);
       hashes.set(fileInfo.originalPath, createHash('md5').update(content).digest('base64'));
       await this.storageService.writeFile(storageFilePath, content);
-    }
+    });
 
     return hashes;
   }
@@ -274,7 +277,7 @@ export class UploadService {
         for (const filePath of storageFiles) {
           await this.storageService.deleteFile(filePath);
         }
-        
+
         // Delete archive files from storage
         await this.storageService.deleteFile(`${projectId}/${version.id}.tar`);
         await this.storageService.deleteFile(`${projectId}/${version.id}.zip`);
@@ -283,7 +286,7 @@ export class UploadService {
           console.error(`Error deleting files for version ${version.id}:`, e);
         }
       }
-      
+
       // Delete from database
       await this.metadataService.deleteVersion(version.id);
     }
