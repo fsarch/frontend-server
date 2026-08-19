@@ -12,7 +12,8 @@
     "typeorm": "node --loader ts-node/esm ./node_modules/typeorm/cli.js",
     "migration:run": "npm run typeorm migration:run -- -d ./config/typeorm.js",
     "migration:generate": "npm run typeorm -- -d ./config/typeorm.js migration:generate ./src/database/migrations/",
-    "migration:create": "npm run typeorm -- migration:create ./src/database/migrations/$npm_config_name"
+    "migration:create": "npm run typeorm -- migration:create ./src/database/migrations/$npm_config_name",
+    "postversion": "git push && git push --tags"
   },
   "repository": {
     "type": "git",
