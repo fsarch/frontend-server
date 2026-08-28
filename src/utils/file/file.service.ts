@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { Response } from 'express';
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import { lookup as mimeLookup } from 'mime-types';
 import path from 'node:path';
 import { MetadataService, ProjectFileInfo } from '../metadata/metadata.service.js';
