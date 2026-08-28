@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 import { MetadataService } from '../metadata/metadata.service.js';
 import { ProjectsService } from '../../controller/admin/projects/projects.service.js';
 import { StorageService } from '../../storage/storage.service.js';
+import { Span, withSpan } from '@fsarch/server/tracing';
 
 @Injectable()
 export class UploadService {
@@ -54,120 +55,130 @@ export class UploadService {
   async handleUpload(req: Request, projectId: string): Promise<void> {
     const versionId = randomUUID();
 
-    this.logger.log(`Received upload request for project ${projectId}, assigned version ${versionId}`, {
-      projectId,
-      versionId,
-      contentType: req.headers['content-type'],
-      contentLength: req.headers['content-length'],
-    });
-
-    // Create temp directory for extraction
-    const tempDir = await this.createTempDir();
-
-    try {
-      // Determine archive type from content-type header, falling back to .tar.
-      // Note: gzip content-types (e.g. "application/gzip", "application/x-gzip")
-      // contain the substring "zip", so gzip must be checked before zip.
-      const contentType = (req.headers['content-type'] || '').toLowerCase();
-      const isGzip = contentType.includes('gzip') || contentType.includes('gz');
-      const isZip = !isGzip && contentType.includes('zip');
-      // tar.x() auto-detects gzip-compressed tarballs, so .tar and .tar.gz
-      // both go through extractTar() - only the temp filename differs.
-      const archiveExt = isZip ? '.zip' : isGzip ? '.tar.gz' : '.tar';
-      const archiveFile = path.join(tempDir, `${versionId}${archiveExt}`);
-
-      // Save archive to temp directory
-      this.logger.log(`Buffering request body for project ${projectId}, version ${versionId}`, {
-        projectId,
-        versionId,
-      });
-      const archiveBuffer = await this.streamToBuffer(req);
-      await writeFile(archiveFile, archiveBuffer);
-
-      // Extract to temp directory
-      const versionPath = path.join(tempDir, versionId);
-      await mkdir(versionPath, { recursive: true });
-
-      let paths: { path: string; size: number; originalPath: string; }[] = [];
-
-      this.logger.log(`Starting extraction of ${archiveExt} archive for project ${projectId}, version ${versionId}`, {
-        projectId,
-        versionId,
-        isZip,
-        archiveSize: archiveBuffer.length,
-      });
-
-      if (isZip) {
-        await this.extractZip(archiveFile, versionPath, paths);
-      } else {
-        await this.extractTar(archiveFile, versionPath, paths);
-      }
-
-      this.logger.log(`Finished extraction for project ${projectId}, version ${versionId}: ${paths.length} file(s) found`, {
-        projectId,
-        versionId,
-        fileCount: paths.length,
-        paths: paths.map((p) => p.originalPath),
-      });
-
-      // Copy extracted files to storage provider, hashing each file's
-      // content as it is read from the temp dir the first time - avoids
-      // reading every file back from the storage provider afterwards.
-      const storageBasePath = `${projectId}/${versionId}`;
-      const hashes = await this.copyToStorage(versionPath, storageBasePath, paths);
-
-      // Create metadata
-      await this.metadataService.createVersion(projectId, versionId);
-
-      const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
-      for (let i = 0, z = paths.length; i < z; i += 1) {
-        const hash = hashes.get(paths[i].originalPath);
-        if (!hash) {
-          throw new Error(`Missing hash for file ${paths[i].originalPath}`);
-        }
-
-        files[paths[i].path] = {
-          hash,
-          size: paths[i].size,
-          mime: mimeLookup(paths[i].path) || 'application/octet-stream',
-          path: paths[i].originalPath,
-        };
-      }
-
-      // Add files to version - up to UPLOAD_CONCURRENCY at a time, next one
-      // starts as soon as a slot frees up
-      await mapWithConcurrency(Object.entries(files), UPLOAD_CONCURRENCY, async ([filePath, fileInfo]) => {
-        await this.metadataService.addFileToVersion(versionId, {
-          path: filePath,
-          originalPath: fileInfo.path,
-          hash: fileInfo.hash,
-          size: fileInfo.size,
-          mime: fileInfo.mime,
+    return withSpan(
+      'upload.handle-upload',
+      async (span) => {
+        this.logger.log(`Received upload request for project ${projectId}, assigned version ${versionId}`, {
+          projectId,
+          versionId,
+          contentType: req.headers['content-type'],
+          contentLength: req.headers['content-length'],
         });
-      });
 
-      // Set current version
-      await this.projectsService.setCurrentVersion(projectId, versionId);
+        // Create temp directory for extraction
+        const tempDir = await this.createTempDir();
 
-      // Mark old versions for deletion
-      await this.metadataService.markOldVersionsForDeletion(
-        projectId,
-        MAX_VERSION_COUNT,
-        MAX_VERSION_AGE,
-      );
+        try {
+          // Determine archive type from content-type header, falling back to .tar.
+          // Note: gzip content-types (e.g. "application/gzip", "application/x-gzip")
+          // contain the substring "zip", so gzip must be checked before zip.
+          const contentType = (req.headers['content-type'] || '').toLowerCase();
+          const isGzip = contentType.includes('gzip') || contentType.includes('gz');
+          const isZip = !isGzip && contentType.includes('zip');
+          // tar.x() auto-detects gzip-compressed tarballs, so .tar and .tar.gz
+          // both go through extractTar() - only the temp filename differs.
+          const archiveExt = isZip ? '.zip' : isGzip ? '.tar.gz' : '.tar';
+          const archiveFile = path.join(tempDir, `${versionId}${archiveExt}`);
+          span.setAttributes({ archiveType: archiveExt.replace(/^\./, '') });
 
-      // Cleanup old version files from storage
-      await this.cleanupOldVersionFiles(projectId, versionId);
+          // Save archive to temp directory
+          this.logger.log(`Buffering request body for project ${projectId}, version ${versionId}`, {
+            projectId,
+            versionId,
+          });
+          const archiveBuffer = await this.streamToBuffer(req);
+          await writeFile(archiveFile, archiveBuffer);
+          span.setAttributes({ archiveSize: archiveBuffer.length });
 
-    } finally {
-      // Always cleanup temp directory, even if an error occurred
-      await this.cleanupTempDir(tempDir);
-    }
+          // Extract to temp directory
+          const versionPath = path.join(tempDir, versionId);
+          await mkdir(versionPath, { recursive: true });
+
+          let paths: { path: string; size: number; originalPath: string; }[] = [];
+
+          this.logger.log(`Starting extraction of ${archiveExt} archive for project ${projectId}, version ${versionId}`, {
+            projectId,
+            versionId,
+            isZip,
+            archiveSize: archiveBuffer.length,
+          });
+
+          if (isZip) {
+            await this.extractZip(archiveFile, versionPath, paths);
+          } else {
+            await this.extractTar(archiveFile, versionPath, paths);
+          }
+
+          this.logger.log(`Finished extraction for project ${projectId}, version ${versionId}: ${paths.length} file(s) found`, {
+            projectId,
+            versionId,
+            fileCount: paths.length,
+            paths: paths.map((p) => p.originalPath),
+          });
+          span.setAttributes({ fileCount: paths.length });
+
+          // Copy extracted files to storage provider, hashing each file's
+          // content as it is read from the temp dir the first time - avoids
+          // reading every file back from the storage provider afterwards.
+          const storageBasePath = `${projectId}/${versionId}`;
+          const hashes = await this.copyToStorage(versionPath, storageBasePath, paths);
+
+          // Create metadata
+          await this.metadataService.createVersion(projectId, versionId);
+
+          const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
+          for (let i = 0, z = paths.length; i < z; i += 1) {
+            const hash = hashes.get(paths[i].originalPath);
+            if (!hash) {
+              throw new Error(`Missing hash for file ${paths[i].originalPath}`);
+            }
+
+            files[paths[i].path] = {
+              hash,
+              size: paths[i].size,
+              mime: mimeLookup(paths[i].path) || 'application/octet-stream',
+              path: paths[i].originalPath,
+            };
+          }
+
+          // Add files to version - up to UPLOAD_CONCURRENCY at a time, next one
+          // starts as soon as a slot frees up
+          await mapWithConcurrency(Object.entries(files), UPLOAD_CONCURRENCY, async ([filePath, fileInfo]) => {
+            await this.metadataService.addFileToVersion(versionId, {
+              path: filePath,
+              originalPath: fileInfo.path,
+              hash: fileInfo.hash,
+              size: fileInfo.size,
+              mime: fileInfo.mime,
+            });
+          });
+
+          // Set current version
+          await this.projectsService.setCurrentVersion(projectId, versionId);
+
+          // Mark old versions for deletion
+          await this.metadataService.markOldVersionsForDeletion(
+            projectId,
+            MAX_VERSION_COUNT,
+            MAX_VERSION_AGE,
+          );
+
+          // Cleanup old version files from storage
+          await this.cleanupOldVersionFiles(projectId, versionId);
+
+        } finally {
+          // Always cleanup temp directory, even if an error occurred
+          await this.cleanupTempDir(tempDir);
+        }
+      },
+      { attributes: { component: 'upload', projectId, versionId } },
+    );
   }
 
   /**
    * Extract ZIP archive to temp directory
    */
+  @Span({ name: 'upload.extract-zip' })
   private async extractZip(
     zipPath: string,
     targetDir: string,
@@ -203,6 +214,7 @@ export class UploadService {
   /**
    * Extract TAR archive to temp directory
    */
+  @Span({ name: 'upload.extract-tar' })
   private async extractTar(
     tarPath: string,
     targetDir: string,
@@ -242,25 +254,31 @@ export class UploadService {
     storageBasePath: string,
     paths: { path: string; size: number; originalPath: string; }[]
   ): Promise<Map<string, string>> {
-    const hashes = new Map<string, string>();
+    return withSpan(
+      'upload.copy-to-storage',
+      async () => {
+        const hashes = new Map<string, string>();
 
-    // Up to UPLOAD_CONCURRENCY files in flight at once; as soon as one
-    // finishes copying, the next queued file starts.
-    await mapWithConcurrency(paths, UPLOAD_CONCURRENCY, async (fileInfo) => {
-      const tempFilePath = path.join(tempDir, fileInfo.originalPath);
-      const storageFilePath = `${storageBasePath}/${fileInfo.originalPath}`;
+        // Up to UPLOAD_CONCURRENCY files in flight at once; as soon as one
+        // finishes copying, the next queued file starts.
+        await mapWithConcurrency(paths, UPLOAD_CONCURRENCY, async (fileInfo) => {
+          const tempFilePath = path.join(tempDir, fileInfo.originalPath);
+          const storageFilePath = `${storageBasePath}/${fileInfo.originalPath}`;
 
-      // Ensure parent directory exists in storage
-      const parentDir = storageFilePath.substring(0, storageFilePath.lastIndexOf('/'));
-      await this.storageService.mkdir(parentDir, { recursive: true });
+          // Ensure parent directory exists in storage
+          const parentDir = storageFilePath.substring(0, storageFilePath.lastIndexOf('/'));
+          await this.storageService.mkdir(parentDir, { recursive: true });
 
-      // Read from temp once, hash the content while we have it, then write to storage
-      const content = await readFile(tempFilePath);
-      hashes.set(fileInfo.originalPath, createHash('md5').update(content).digest('base64'));
-      await this.storageService.writeFile(storageFilePath, content);
-    });
+          // Read from temp once, hash the content while we have it, then write to storage
+          const content = await readFile(tempFilePath);
+          hashes.set(fileInfo.originalPath, createHash('md5').update(content).digest('base64'));
+          await this.storageService.writeFile(storageFilePath, content);
+        });
 
-    return hashes;
+        return hashes;
+      },
+      { attributes: { fileCount: paths.length } },
+    );
   }
 
   /**

@@ -9,6 +9,7 @@ import { MetadataService, ProjectFileInfo } from '../metadata/metadata.service.j
 import { ProjectFile } from '../../database/entities/project-file.entity.js';
 import { StorageService } from '../../storage/storage.service.js';
 import { Readable } from 'stream';
+import { Span, withSpan } from '@fsarch/server/tracing';
 
 const CACHE = new LRUCache<string, Buffer>({
   maxSize: 100 * 1024 * 1024,
@@ -31,6 +32,7 @@ export class FileService {
   /**
    * Findet eine Datei in einem Projekt
    */
+  @Span({ name: 'content.find-file' })
   async findFile(
     projectId: string,
     requestPath: string,
@@ -62,77 +64,98 @@ export class FileService {
     projectId: string,
     requestPath: string,
   ): Promise<void> {
-    let foundFile = await this.findFile(projectId, requestPath);
+    return withSpan(
+      'content.handle-file',
+      async (span) => {
+        let foundFile = await this.findFile(projectId, requestPath);
+        let usedFallback = false;
 
-    if (!foundFile) {
-      foundFile = await this.findFile(projectId, 'index.html');
-    }
+        if (!foundFile) {
+          usedFallback = true;
+          foundFile = await this.findFile(projectId, 'index.html');
+        }
+        span.setAttributes({ usedIndexFallback: usedFallback });
 
-    if (!foundFile || foundFile.file.path.endsWith('.js.map')) {
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
+        if (!foundFile || foundFile.file.path.endsWith('.js.map')) {
+          span.setAttributes({ statusCode: 404 });
+          res.statusCode = 404;
+          res.end();
+          return;
+        }
 
-    const eTagValue = JSON.stringify(foundFile.file.hash);
-    if (headers['if-none-match'] && headers['if-none-match'] === eTagValue) {
-      res.statusCode = 304;
-      res.end();
-      return;
-    }
+        span.setAttributes({
+          version: foundFile.version,
+          filePath: foundFile.file.path,
+          fileSize: foundFile.file.size,
+        });
 
-    const mimeType = mimeLookup(foundFile.file.path);
-    if (mimeType === 'text/html') {
-      res.setHeader('Cache-Control', `public, max-age=0, must-revalidate, stale-if-error=${60 * 60}`);
-    } else if (mimeType === 'text/css') {
-      res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
-    } else if (mimeType === 'text/javascript') {
-      res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
-    } else {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
+        const eTagValue = JSON.stringify(foundFile.file.hash);
+        if (headers['if-none-match'] && headers['if-none-match'] === eTagValue) {
+          span.setAttributes({ statusCode: 304 });
+          res.statusCode = 304;
+          res.end();
+          return;
+        }
 
-    res.setHeader('Content-Type', foundFile.file.mime);
-    res.setHeader('ETag', eTagValue);
+        const mimeType = mimeLookup(foundFile.file.path);
+        if (mimeType === 'text/html') {
+          res.setHeader('Cache-Control', `public, max-age=0, must-revalidate, stale-if-error=${60 * 60}`);
+        } else if (mimeType === 'text/css') {
+          res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
+        } else if (mimeType === 'text/javascript') {
+          res.setHeader('Cache-Control', `public, max-age=${5 * 60}, must-revalidate, stale-if-error=${60 * 60}`);
+        } else {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
 
-    if (foundFile.file.size > 5 * 1024 * 1024) {
-      // Stream file when size is bigger than 5 MB
-      const contentStream = await this.storageService.createReadStream(foundFile.path);
+        res.setHeader('Content-Type', foundFile.file.mime);
+        res.setHeader('ETag', eTagValue);
 
-      contentStream.on('end', () => {
-        res.statusCode = 200;
-        res.end();
-      });
+        if (foundFile.file.size > 5 * 1024 * 1024) {
+          // Stream file when size is bigger than 5 MB
+          span.setAttributes({ statusCode: 200, delivery: 'stream' });
+          const contentStream = await this.storageService.createReadStream(foundFile.path);
 
-      contentStream.on('error', (err) => {
-        console.error(err);
-        res.statusCode = 500;
-        res.end();
-      });
+          contentStream.on('end', () => {
+            res.statusCode = 200;
+            res.end();
+          });
 
-      contentStream.pipe(res);
-      return;
-    }
+          contentStream.on('error', (err) => {
+            console.error(err);
+            res.statusCode = 500;
+            res.end();
+          });
 
-    const cachedEntry = CACHE.get(foundFile.path);
-    if (cachedEntry) {
-      res.statusCode = 200;
-      res.end(cachedEntry);
-      return;
-    }
+          contentStream.pipe(res);
+          return;
+        }
 
-    try {
-      const content = await this.storageService.readFile(foundFile.path);
-      CACHE.set(foundFile.path, content);
+        const cachedEntry = CACHE.get(foundFile.path);
+        if (cachedEntry) {
+          span.setAttributes({ statusCode: 200, delivery: 'cache' });
+          res.statusCode = 200;
+          res.end(cachedEntry);
+          return;
+        }
 
-      res.statusCode = 200;
-      res.end(content);
-      return;
-    } catch (err) {
-      console.error(`Error reading file ${foundFile.path}:`, err);
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
+        try {
+          const content = await this.storageService.readFile(foundFile.path);
+          CACHE.set(foundFile.path, content);
+
+          span.setAttributes({ statusCode: 200, delivery: 'storage' });
+          res.statusCode = 200;
+          res.end(content);
+          return;
+        } catch (err) {
+          console.error(`Error reading file ${foundFile.path}:`, err);
+          span.setAttributes({ statusCode: 404 });
+          res.statusCode = 404;
+          res.end();
+          return;
+        }
+      },
+      { attributes: { component: 'content', projectId, requestPath } },
+    );
   }
 }
