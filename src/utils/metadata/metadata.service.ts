@@ -185,7 +185,8 @@ export class MetadataService {
   }
 
   /**
-   * Findet eine Datei in einem Projekt
+   * Findet eine Datei in einem Projekt. Sucht per Join über die Versionen des Projekts,
+   * beginnend mit der neuesten, statt Version und Datei in getrennten Queries aufzulösen.
    */
   async findFile(projectId: string, requestPath: string): Promise<{
     file: ProjectFileInfo;
@@ -194,37 +195,30 @@ export class MetadataService {
   } | null> {
     const normalizedPath = requestPath.toLowerCase();
 
-    // Finde die neueste Version des Projekts
-    const versions = await this.projectVersionRepository.find({
-      where: { projectId, deletionTime: IsNull() },
-      order: { creationTime: 'DESC' },
-    });
+    const file = await this.projectFileRepository
+      .createQueryBuilder('file')
+      .innerJoin('file.version', 'version')
+      .where('version.projectId = :projectId', { projectId })
+      .andWhere('version.deletionTime IS NULL')
+      .andWhere('file.path = :path', { path: normalizedPath })
+      .andWhere('file.deletionTime IS NULL')
+      .orderBy('version.creationTime', 'DESC')
+      .getOne();
 
-    if (!versions.length) {
+    if (!file) {
       return null;
     }
 
-    // Suche Datei in allen Versionen (beginnend mit der neuesten)
-    for (const version of versions) {
-      const file = await this.projectFileRepository.findOne({
-        where: { versionId: version.id, path: normalizedPath, deletionTime: IsNull() },
-      });
-
-      if (file) {
-        return {
-          file: {
-            hash: file.hash,
-            size: file.size,
-            path: file.originalPath,
-            mime: file.mime,
-          },
-          version: version.id,
-          filePath: file.originalPath,
-        };
-      }
-    }
-
-    return null;
+    return {
+      file: {
+        hash: file.hash,
+        size: file.size,
+        path: file.originalPath,
+        mime: file.mime,
+      },
+      version: file.versionId,
+      filePath: file.originalPath,
+    };
   }
 
   /**
