@@ -24,6 +24,28 @@ export class ProjectVersion {
   @Index()
   projectId: string;
 
+  @Column({
+    name: "name",
+    length: 2048,
+    nullable: true,
+  })
+  name?: string;
+
+  @Column({
+    name: "description",
+    type: "text",
+    nullable: true,
+  })
+  description?: string;
+
+  @Column({
+    name: "external_id",
+    length: 2048,
+    nullable: true,
+  })
+  @Index()
+  externalId?: string;
+
   @ManyToOne(() => Project, (project) => project.id, {
     onUpdate: "CASCADE",
     onDelete: "CASCADE",

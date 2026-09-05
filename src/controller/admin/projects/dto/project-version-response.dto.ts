@@ -14,6 +14,21 @@ export class ProjectVersionResponseDto {
   })
   projectId: string;
 
+  @ApiPropertyOptional({
+    description: 'Name of the version',
+  })
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Description of the version',
+  })
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'External id of the version, e.g. a build number or commit hash',
+  })
+  externalId?: string;
+
   @ApiProperty({
     description: 'Timestamp at which the version was created',
     format: 'date-time',
@@ -30,6 +45,9 @@ export class ProjectVersionResponseDto {
     const dto = new ProjectVersionResponseDto();
     dto.id = version.id;
     dto.projectId = version.projectId;
+    dto.name = version.name;
+    dto.description = version.description;
+    dto.externalId = version.externalId;
     dto.creationTime = version.creationTime;
     dto.deletionTime = version.deletionTime;
     return dto;

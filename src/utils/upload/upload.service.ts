@@ -1,6 +1,13 @@
 import { Injectable, forwardRef, Inject, Logger } from '@nestjs/common';
 import path from 'node:path';
-import { MAX_VERSION_AGE, MAX_VERSION_COUNT, UPLOAD_CONCURRENCY } from '../../constants/app-constants.js';
+import {
+  MAX_VERSION_AGE,
+  MAX_VERSION_COUNT,
+  UPLOAD_CONCURRENCY,
+  VERSION_DESCRIPTION_HEADER,
+  VERSION_EXTERNAL_ID_HEADER,
+  VERSION_NAME_HEADER,
+} from '../../constants/app-constants.js';
 import * as tar from 'tar';
 import { lookup as mimeLookup } from 'mime-types';
 import { Request } from 'express';
@@ -123,8 +130,12 @@ export class UploadService {
           const storageBasePath = `${projectId}/${versionId}`;
           const hashes = await this.copyToStorage(versionPath, storageBasePath, paths);
 
-          // Create metadata
-          await this.metadataService.createVersion(projectId, versionId);
+          // Create metadata, picking up optional name/description/externalId from headers
+          await this.metadataService.createVersion(projectId, versionId, {
+            name: this.getHeaderValue(req, VERSION_NAME_HEADER),
+            description: this.getHeaderValue(req, VERSION_DESCRIPTION_HEADER),
+            externalId: this.getHeaderValue(req, VERSION_EXTERNAL_ID_HEADER),
+          });
 
           const files: Record<string, { hash: string; size: number; mime: string; path: string; }> = {};
           for (let i = 0, z = paths.length; i < z; i += 1) {
@@ -308,6 +319,17 @@ export class UploadService {
       // Delete from database
       await this.metadataService.deleteVersion(version.id);
     }
+  }
+
+  /**
+   * Reads a single-value request header, returning `undefined` for missing
+   * or blank headers instead of an empty string (so optional version
+   * metadata stays unset rather than being saved as "").
+   */
+  private getHeaderValue(req: Request, name: string): string | undefined {
+    const value = req.headers[name];
+    const singleValue = Array.isArray(value) ? value[0] : value;
+    return singleValue?.trim() || undefined;
   }
 
   /**

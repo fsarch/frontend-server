@@ -224,10 +224,17 @@ export class MetadataService {
   /**
    * Erstellt eine neue Version für ein Projekt
    */
-  async createVersion(projectId: string, versionId: string): Promise<ProjectVersion> {
+  async createVersion(
+    projectId: string,
+    versionId: string,
+    metadata?: { name?: string; description?: string; externalId?: string },
+  ): Promise<ProjectVersion> {
     const version = this.projectVersionRepository.create({
       id: versionId,
       projectId,
+      name: metadata?.name,
+      description: metadata?.description,
+      externalId: metadata?.externalId,
     });
 
     return await this.projectVersionRepository.save(version);
