@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Patch, Post, Req, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import { Request } from 'express';
 import {
   ApiBearerAuth,
@@ -48,6 +48,17 @@ export class VersionsController {
     @Req() request: Request,
   ): Promise<void> {
     await this.uploadService.handleUpload(request, projectId);
+  }
+
+  @Get(':versionId')
+  @ApiOkResponse({ type: ProjectVersionResponseDto })
+  @ApiNotFoundResponse({ description: 'Version not found' })
+  public async getVersion(
+    @Param('projectId') projectId: string,
+    @Param('versionId') versionId: string,
+  ): Promise<ProjectVersionResponseDto> {
+    const version = await this.versionsService.findVersion(projectId, versionId);
+    return ProjectVersionResponseDto.fromEntity(version);
   }
 
   @Patch(':versionId')
