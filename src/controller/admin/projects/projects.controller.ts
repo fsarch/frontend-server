@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  NotFoundException,
   Param,
   Post,
   Res,
@@ -10,12 +11,18 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from "@fsarch/server/auth";
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
-import { Project } from '../../../database/entities/project.entity.js';
-import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
+import { ProjectResponseDto } from './dto/project-response.dto.js';
+import { ProjectVersionResponseDto } from './dto/project-version-response.dto.js';
 import { FileService } from '../../../utils/file/file.service.js';
 
 @ApiTags('projects')
@@ -33,41 +40,52 @@ export class ProjectsController {
 
   @Post()
   @ApiBearerAuth()
+  @ApiCreatedResponse({ type: ProjectResponseDto })
   @UsePipes(new ValidationPipe())
   async createProject(
     @Body() dto: CreateProjectDto,
-  ): Promise<Project> {
-    return this.projectsService.createProject(dto);
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.createProject(dto);
+    return ProjectResponseDto.fromEntity(project);
   }
 
   @Get()
   @ApiBearerAuth()
-  async getAllProjects(): Promise<Project[]> {
-    return this.projectsService.findAllProjects();
+  @ApiOkResponse({ type: ProjectResponseDto, isArray: true })
+  async getAllProjects(): Promise<ProjectResponseDto[]> {
+    const projects = await this.projectsService.findAllProjects();
+    return projects.map((project) => ProjectResponseDto.fromEntity(project));
   }
 
   @Get(':projectId')
   @ApiBearerAuth()
-  async getProject(@Param('projectId') projectId: string): Promise<Project> {
+  @ApiOkResponse({ type: ProjectResponseDto })
+  @ApiNotFoundResponse({ description: 'Project not found' })
+  async getProject(@Param('projectId') projectId: string): Promise<ProjectResponseDto> {
     const project = await this.projectsService.findProjectById(projectId);
     if (!project) {
-      throw new Error(`Project with id ${projectId} not found`);
+      throw new NotFoundException(`Project with id ${projectId} not found`);
     }
-    return project;
+    return ProjectResponseDto.fromEntity(project);
   }
 
   @Get(':projectId/versions')
   @ApiBearerAuth()
+  @ApiOkResponse({ type: ProjectVersionResponseDto, isArray: true })
+  @ApiNotFoundResponse({ description: 'Project not found' })
   async getProjectVersions(
     @Param('projectId') projectId: string,
-  ): Promise<ProjectVersion[]> {
-    return this.projectsService.getProjectVersions(projectId);
+  ): Promise<ProjectVersionResponseDto[]> {
+    const versions = await this.projectsService.getProjectVersions(projectId);
+    return versions.map((version) => ProjectVersionResponseDto.fromEntity(version));
   }
 
   @Get('versions')
   @ApiBearerAuth()
-  async getAllVersions(): Promise<ProjectVersion[]> {
-    return this.projectsService.getAllVersions();
+  @ApiOkResponse({ type: ProjectVersionResponseDto, isArray: true })
+  async getAllVersions(): Promise<ProjectVersionResponseDto[]> {
+    const versions = await this.projectsService.getAllVersions();
+    return versions.map((version) => ProjectVersionResponseDto.fromEntity(version));
   }
 
   // ============ Datei-Zugriff Endpunkte (ersetzt /projects/:projectId) ============

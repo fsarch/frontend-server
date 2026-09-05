@@ -1,6 +1,6 @@
 import { Controller, Param, Post, Req } from '@nestjs/common';
 import { Request } from 'express';
-import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConsumes, ApiCreatedResponse, ApiTags } from "@nestjs/swagger";
 import { UploadService } from '../../../../utils/upload/upload.service.js';
 
 @Controller({
@@ -20,10 +20,11 @@ export class VersionsController {
     'application/gzip',
     'application/x-gzip',
   )
+  @ApiCreatedResponse({ description: 'Version uploaded successfully, no response body' })
   public async uploadVersion(
     @Param('projectId') projectId: string,
     @Req() request: Request,
-  ) {
+  ): Promise<void> {
     await this.uploadService.handleUpload(request, projectId);
   }
 }
