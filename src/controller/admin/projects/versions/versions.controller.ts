@@ -1,7 +1,18 @@
-import { Controller, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Param, Patch, Post, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import { Request } from 'express';
-import { ApiBearerAuth, ApiConsumes, ApiCreatedResponse, ApiHeader, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { UploadService } from '../../../../utils/upload/upload.service.js';
+import { VersionsService } from './versions.service.js';
+import { UpdateProjectVersionDto } from './dto/update-project-version.dto.js';
+import { ProjectVersionResponseDto } from '../dto/project-version-response.dto.js';
 import {
   VERSION_DESCRIPTION_HEADER,
   VERSION_EXTERNAL_ID_HEADER,
@@ -15,7 +26,10 @@ import {
 @ApiTags('projects')
 @ApiBearerAuth()
 export class VersionsController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    private readonly versionsService: VersionsService,
+  ) {}
 
   @Post()
   @ApiConsumes(
@@ -34,5 +48,18 @@ export class VersionsController {
     @Req() request: Request,
   ): Promise<void> {
     await this.uploadService.handleUpload(request, projectId);
+  }
+
+  @Patch(':versionId')
+  @ApiOkResponse({ type: ProjectVersionResponseDto })
+  @ApiNotFoundResponse({ description: 'Version not found' })
+  @UsePipes(new ValidationPipe())
+  public async updateVersion(
+    @Param('projectId') projectId: string,
+    @Param('versionId') versionId: string,
+    @Body() dto: UpdateProjectVersionDto,
+  ): Promise<ProjectVersionResponseDto> {
+    const version = await this.versionsService.updateVersion(projectId, versionId, dto);
+    return ProjectVersionResponseDto.fromEntity(version);
   }
 }
