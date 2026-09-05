@@ -5,6 +5,7 @@ import {
   Headers,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Res,
   UsePipes,
@@ -21,6 +22,7 @@ import {
 import { Public } from "@fsarch/server/auth";
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
 import { ProjectVersionResponseDto } from './dto/project-version-response.dto.js';
 import { FileService } from '../../../utils/file/file.service.js';
@@ -66,6 +68,19 @@ export class ProjectsController {
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
+    return ProjectResponseDto.fromEntity(project);
+  }
+
+  @Patch(':projectId')
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: ProjectResponseDto })
+  @ApiNotFoundResponse({ description: 'Project (or referenced currentVersionId) not found' })
+  @UsePipes(new ValidationPipe())
+  async updateProject(
+    @Param('projectId') projectId: string,
+    @Body() dto: UpdateProjectDto,
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.updateProject(projectId, dto);
     return ProjectResponseDto.fromEntity(project);
   }
 

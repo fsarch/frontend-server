@@ -5,6 +5,7 @@ import { Project } from '../../../database/entities/project.entity.js';
 import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
 import { ProjectFile } from '../../../database/entities/project-file.entity.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
 
 @Injectable()
 export class ProjectsService {
@@ -58,6 +59,29 @@ export class ProjectsService {
       where: { deletionTime: IsNull() },
       order: { creationTime: 'DESC' },
     });
+  }
+
+  async updateProject(id: string, dto: UpdateProjectDto): Promise<Project> {
+    let project = await this.findProjectById(id);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${id} not found`);
+    }
+
+    if (dto.currentVersionId !== undefined) {
+      project = await this.setCurrentVersion(id, dto.currentVersionId);
+    }
+
+    if (dto.name !== undefined || dto.description !== undefined) {
+      if (dto.name !== undefined) {
+        project.name = dto.name;
+      }
+      if (dto.description !== undefined) {
+        project.description = dto.description;
+      }
+      project = await this.projectRepository.save(project);
+    }
+
+    return project;
   }
 
   async setCurrentVersion(projectId: string, versionId: string): Promise<Project> {
