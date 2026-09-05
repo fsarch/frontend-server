@@ -30,6 +30,13 @@ export class S3StorageProvider implements IStorageProvider {
           }
         : undefined,
       endpoint: config.endpoint,
+      // S3-compatible backends (e.g. Ceph/Hetzner) can respond with
+      // "SlowDown" throttling errors under concurrent load. Use adaptive
+      // retry (client-side rate limiting + backoff) and allow more attempts
+      // than the SDK default (3) so transient throttling is absorbed instead
+      // of failing the upload.
+      maxAttempts: 8,
+      retryMode: 'adaptive',
     });
   }
 

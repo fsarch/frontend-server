@@ -3,8 +3,10 @@ export const MAX_VERSION_COUNT = 20;
 export const MAX_VERSION_AGE = 90 * 24 * 60 * 1000;
 
 // Number of files processed in parallel while copying an upload to storage
-// and while writing file metadata to the database.
-export const UPLOAD_CONCURRENCY = 10;
+// and while writing file metadata to the database. Kept low because
+// S3-compatible backends (e.g. Ceph/Hetzner) start throttling ("SlowDown")
+// well below what the SDK's own connection pool would otherwise allow.
+export const UPLOAD_CONCURRENCY = 4;
 
 export const UPLOAD_SECRET = 'a6d844cb-c893-4ccd-8728-f20fe6455a8d';
 
