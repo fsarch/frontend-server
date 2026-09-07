@@ -205,8 +205,13 @@ export class UploadService {
         // Ensure parent directory exists
         await mkdir(path.dirname(extractPath), { recursive: true });
 
-        // Extract file content
-        zip.extractEntryTo(entry.entryName, targetDir, false, true);
+        // Extract file content. maintainEntryPath must be true - adm-zip's
+        // per-file extraction (unlike its whole-directory-entry extraction)
+        // flattens to the entry's basename when it's false, discarding any
+        // subdirectory path, which then mismatches the full originalPath
+        // recorded below and makes the later readFile() in copyToStorage()
+        // fail with ENOENT for any file that isn't at the archive's root.
+        zip.extractEntryTo(entry.entryName, targetDir, true, true);
 
         // Normalize path (remove leading ./ and \ and convert to lowercase for lookup)
         const normalizedPath = entry.entryName
