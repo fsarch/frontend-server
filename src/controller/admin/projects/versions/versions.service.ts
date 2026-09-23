@@ -11,13 +11,18 @@ export class VersionsService {
     private readonly projectVersionRepository: Repository<ProjectVersion>,
   ) {}
 
-  async findVersion(projectId: string, versionId: string): Promise<ProjectVersion> {
+  async findVersion(
+    projectId: string,
+    versionId: string,
+  ): Promise<ProjectVersion> {
     const version = await this.projectVersionRepository.findOne({
       where: { id: versionId, projectId, deletionTime: IsNull() },
     });
 
     if (!version) {
-      throw new NotFoundException(`Version with id ${versionId} not found for project ${projectId}`);
+      throw new NotFoundException(
+        `Version with id ${versionId} not found for project ${projectId}`,
+      );
     }
 
     return version;

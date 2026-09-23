@@ -1,5 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UsePipes, ValidationPipe } from '@nestjs/common';
-import { Request } from 'express';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConsumes,
@@ -8,16 +17,17 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
-} from "@nestjs/swagger";
-import { UploadService } from '../../../../utils/upload/upload.service.js';
-import { VersionsService } from './versions.service.js';
-import { UpdateProjectVersionDto } from './dto/update-project-version.dto.js';
-import { ProjectVersionResponseDto } from '../dto/project-version-response.dto.js';
+} from '@nestjs/swagger';
+import { Request } from 'express';
 import {
   VERSION_DESCRIPTION_HEADER,
   VERSION_EXTERNAL_ID_HEADER,
   VERSION_NAME_HEADER,
 } from '../../../../constants/app-constants.js';
+import { UploadService } from '../../../../utils/upload/upload.service.js';
+import { ProjectVersionResponseDto } from '../dto/project-version-response.dto.js';
+import { UpdateProjectVersionDto } from './dto/update-project-version.dto.js';
+import { VersionsService } from './versions.service.js';
 
 @Controller({
   path: '/projects/:projectId/versions',
@@ -39,10 +49,25 @@ export class VersionsController {
     'application/gzip',
     'application/x-gzip',
   )
-  @ApiHeader({ name: VERSION_NAME_HEADER, description: 'Optional name for the version', required: false })
-  @ApiHeader({ name: VERSION_DESCRIPTION_HEADER, description: 'Optional description for the version', required: false })
-  @ApiHeader({ name: VERSION_EXTERNAL_ID_HEADER, description: 'Optional external id for the version, e.g. a build number or commit hash', required: false })
-  @ApiCreatedResponse({ description: 'Version uploaded successfully, no response body' })
+  @ApiHeader({
+    name: VERSION_NAME_HEADER,
+    description: 'Optional name for the version',
+    required: false,
+  })
+  @ApiHeader({
+    name: VERSION_DESCRIPTION_HEADER,
+    description: 'Optional description for the version',
+    required: false,
+  })
+  @ApiHeader({
+    name: VERSION_EXTERNAL_ID_HEADER,
+    description:
+      'Optional external id for the version, e.g. a build number or commit hash',
+    required: false,
+  })
+  @ApiCreatedResponse({
+    description: 'Version uploaded successfully, no response body',
+  })
   public async uploadVersion(
     @Param('projectId') projectId: string,
     @Req() request: Request,
@@ -57,7 +82,10 @@ export class VersionsController {
     @Param('projectId') projectId: string,
     @Param('versionId') versionId: string,
   ): Promise<ProjectVersionResponseDto> {
-    const version = await this.versionsService.findVersion(projectId, versionId);
+    const version = await this.versionsService.findVersion(
+      projectId,
+      versionId,
+    );
     return ProjectVersionResponseDto.fromEntity(version);
   }
 
@@ -70,7 +98,11 @@ export class VersionsController {
     @Param('versionId') versionId: string,
     @Body() dto: UpdateProjectVersionDto,
   ): Promise<ProjectVersionResponseDto> {
-    const version = await this.versionsService.updateVersion(projectId, versionId, dto);
+    const version = await this.versionsService.updateVersion(
+      projectId,
+      versionId,
+      dto,
+    );
     return ProjectVersionResponseDto.fromEntity(version);
   }
 }

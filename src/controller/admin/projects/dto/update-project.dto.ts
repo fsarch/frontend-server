@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class UpdateProjectDto {
   @ApiPropertyOptional({
@@ -19,7 +19,8 @@ export class UpdateProjectDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Id of the version to activate as the current version of the project',
+    description:
+      'Id of the version to activate as the current version of the project',
     format: 'uuid',
   })
   @IsUUID()

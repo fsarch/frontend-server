@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-
-import { ControllerModule } from './controller/controller.module.js';
 import configuration from './configuration.js';
-import { StorageModule } from './storage/storage.module.js';
+import { ControllerModule } from './controller/controller.module.js';
 import { Project } from './database/entities/project.entity.js';
-import { ProjectVersion } from './database/entities/project-version.entity.js';
 import { ProjectFile } from './database/entities/project-file.entity.js';
+import { ProjectVersion } from './database/entities/project-version.entity.js';
+import { StorageModule } from './storage/storage.module.js';
 
 @Module({
   imports: [

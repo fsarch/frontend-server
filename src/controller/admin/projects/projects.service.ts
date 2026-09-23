@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity.js';
-import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
 import { ProjectFile } from '../../../database/entities/project-file.entity.js';
+import { ProjectVersion } from '../../../database/entities/project-version.entity.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 
@@ -84,7 +84,10 @@ export class ProjectsService {
     return project;
   }
 
-  async setCurrentVersion(projectId: string, versionId: string): Promise<Project> {
+  async setCurrentVersion(
+    projectId: string,
+    versionId: string,
+  ): Promise<Project> {
     const project = await this.findProjectById(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
@@ -95,7 +98,9 @@ export class ProjectsService {
     });
 
     if (!version) {
-      throw new NotFoundException(`Version with id ${versionId} not found for project ${projectId}`);
+      throw new NotFoundException(
+        `Version with id ${versionId} not found for project ${projectId}`,
+      );
     }
 
     project.currentVersionId = version.id;

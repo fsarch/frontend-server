@@ -5,43 +5,43 @@ import {
   Entity,
   Index,
   PrimaryGeneratedColumn,
-} from "typeorm";
+} from 'typeorm';
 
 @Entity({
-  name: "project",
+  name: 'project',
 })
 export class Project {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({
-    name: "name",
+    name: 'name',
     length: 2048,
   })
   name: string;
 
   @Column({
-    name: "description",
-    type: "text",
+    name: 'description',
+    type: 'text',
     nullable: true,
   })
   description?: string;
 
   @Column({
-    name: "current_version_id",
-    type: "uuid",
+    name: 'current_version_id',
+    type: 'uuid',
     nullable: true,
   })
   @Index()
   currentVersionId?: string;
 
   @CreateDateColumn({
-    name: "creation_time",
+    name: 'creation_time',
   })
   creationTime: Date;
 
   @DeleteDateColumn({
-    name: "deletion_time",
+    name: 'deletion_time',
   })
   @Index()
   deletionTime?: Date;

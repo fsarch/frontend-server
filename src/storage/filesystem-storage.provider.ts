@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { IStorageProvider } from './storage-provider.interface.js';
+import {
+  existsSync,
+  createReadStream as fsCreateReadStream,
+  readdir,
+} from 'node:fs';
 import * as fs from 'node:fs/promises';
-import { existsSync, readdir } from 'node:fs';
-import { createReadStream as fsCreateReadStream } from 'node:fs';
 import * as path from 'node:path';
+import { Injectable } from '@nestjs/common';
 import { Readable } from 'stream';
+import { IStorageProvider } from './storage-provider.interface.js';
 
 @Injectable()
 export class FileSystemStorageProvider implements IStorageProvider {
@@ -28,7 +31,10 @@ export class FileSystemStorageProvider implements IStorageProvider {
     return existsSync(this.getFullPath(filePath));
   }
 
-  async mkdir(filePath: string, options?: { recursive?: boolean }): Promise<void> {
+  async mkdir(
+    filePath: string,
+    options?: { recursive?: boolean },
+  ): Promise<void> {
     await fs.mkdir(this.getFullPath(filePath), options);
   }
 
@@ -43,11 +49,11 @@ export class FileSystemStorageProvider implements IStorageProvider {
 
   async listFiles(prefix: string): Promise<string[]> {
     const fullPrefix = this.getFullPath(prefix);
-    
+
     try {
       const items = await fs.readdir(fullPrefix, { withFileTypes: true });
       const files: string[] = [];
-      
+
       for (const item of items) {
         const itemPath = path.join(prefix, item.name);
         if (item.isFile()) {
@@ -58,7 +64,7 @@ export class FileSystemStorageProvider implements IStorageProvider {
           files.push(...subFiles);
         }
       }
-      
+
       return files;
     } catch (error: any) {
       if (error.code === 'ENOENT') {

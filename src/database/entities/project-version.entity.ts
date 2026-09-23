@@ -7,62 +7,66 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-} from "typeorm";
-import { Project } from "./project.entity.js";
+} from 'typeorm';
+import { Project } from './project.entity.js';
 
 @Entity({
-  name: "project_version",
+  name: 'project_version',
 })
 export class ProjectVersion {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({
-    name: "project_id",
-    type: "uuid",
+    name: 'project_id',
+    type: 'uuid',
   })
   @Index()
   projectId: string;
 
   @Column({
-    name: "name",
+    name: 'name',
     length: 2048,
     nullable: true,
   })
   name?: string;
 
   @Column({
-    name: "description",
-    type: "text",
+    name: 'description',
+    type: 'text',
     nullable: true,
   })
   description?: string;
 
   @Column({
-    name: "external_id",
+    name: 'external_id',
     length: 2048,
     nullable: true,
   })
   @Index()
   externalId?: string;
 
-  @ManyToOne(() => Project, (project) => project.id, {
-    onUpdate: "CASCADE",
-    onDelete: "CASCADE",
-  })
+  @ManyToOne(
+    () => Project,
+    (project) => project.id,
+    {
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({
-    name: "project_id",
-    foreignKeyConstraintName: "fk__project_version__project_id",
+    name: 'project_id',
+    foreignKeyConstraintName: 'fk__project_version__project_id',
   })
   project: Project;
 
   @CreateDateColumn({
-    name: "creation_time",
+    name: 'creation_time',
   })
   creationTime: Date;
 
   @DeleteDateColumn({
-    name: "deletion_time",
+    name: 'deletion_time',
   })
   @Index()
   deletionTime?: Date;

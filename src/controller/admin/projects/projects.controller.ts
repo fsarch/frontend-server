@@ -1,3 +1,4 @@
+import { Public } from '@fsarch/server/auth';
 import {
   Body,
   Controller,
@@ -11,7 +12,6 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -19,13 +19,13 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from "@fsarch/server/auth";
-import { ProjectsService } from './projects.service.js';
+import type { Response } from 'express';
+import { FileService } from '../../../utils/file/file.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
-import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
 import { ProjectVersionResponseDto } from './dto/project-version-response.dto.js';
-import { FileService } from '../../../utils/file/file.service.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
+import { ProjectsService } from './projects.service.js';
 
 @ApiTags('projects')
 @Controller({
@@ -63,7 +63,9 @@ export class ProjectsController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectResponseDto })
   @ApiNotFoundResponse({ description: 'Project not found' })
-  async getProject(@Param('projectId') projectId: string): Promise<ProjectResponseDto> {
+  async getProject(
+    @Param('projectId') projectId: string,
+  ): Promise<ProjectResponseDto> {
     const project = await this.projectsService.findProjectById(projectId);
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
@@ -74,7 +76,9 @@ export class ProjectsController {
   @Patch(':projectId')
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectResponseDto })
-  @ApiNotFoundResponse({ description: 'Project (or referenced currentVersionId) not found' })
+  @ApiNotFoundResponse({
+    description: 'Project (or referenced currentVersionId) not found',
+  })
   @UsePipes(new ValidationPipe())
   async updateProject(
     @Param('projectId') projectId: string,
@@ -92,7 +96,9 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
   ): Promise<ProjectVersionResponseDto[]> {
     const versions = await this.projectsService.getProjectVersions(projectId);
-    return versions.map((version) => ProjectVersionResponseDto.fromEntity(version));
+    return versions.map((version) =>
+      ProjectVersionResponseDto.fromEntity(version),
+    );
   }
 
   @Get('versions')
@@ -100,7 +106,9 @@ export class ProjectsController {
   @ApiOkResponse({ type: ProjectVersionResponseDto, isArray: true })
   async getAllVersions(): Promise<ProjectVersionResponseDto[]> {
     const versions = await this.projectsService.getAllVersions();
-    return versions.map((version) => ProjectVersionResponseDto.fromEntity(version));
+    return versions.map((version) =>
+      ProjectVersionResponseDto.fromEntity(version),
+    );
   }
 
   // ============ Datei-Zugriff Endpunkte (ersetzt /projects/:projectId) ============
@@ -112,7 +120,12 @@ export class ProjectsController {
     @Headers() headers: Record<string, string>,
     @Res() response: Response,
   ): Promise<void> {
-    return this.fileService.handleFile(headers, response, projectId, 'index.html');
+    return this.fileService.handleFile(
+      headers,
+      response,
+      projectId,
+      'index.html',
+    );
   }
 
   @Get(':projectId/resolve/{*path}')
@@ -124,6 +137,11 @@ export class ProjectsController {
     @Headers() headers: Record<string, string>,
     @Res() response: Response,
   ): Promise<void> {
-    return this.fileService.handleFile(headers, response, projectId, pathParts.join('/'));
+    return this.fileService.handleFile(
+      headers,
+      response,
+      projectId,
+      pathParts.join('/'),
+    );
   }
 }

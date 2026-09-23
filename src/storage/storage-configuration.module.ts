@@ -27,7 +27,10 @@ const STORAGE_DATA_SCHEMA = Joi.alternatives().try(
 export { STORAGE_CONFIG_TOKEN };
 
 // Create and export the dynamic module directly
-export const StorageConfigurationDynamicModule = ModuleConfiguration.register(STORAGE_CONFIG_TOKEN, {
-  name: 'storage.data',
-  validationSchema: STORAGE_DATA_SCHEMA,
-});
+export const StorageConfigurationDynamicModule = ModuleConfiguration.register(
+  STORAGE_CONFIG_TOKEN,
+  {
+    name: 'storage.data',
+    validationSchema: STORAGE_DATA_SCHEMA,
+  },
+);

@@ -32,7 +32,8 @@ export class ProjectResponseDto {
   creationTime: Date;
 
   @ApiPropertyOptional({
-    description: 'Timestamp at which the project was deleted, if it was deleted',
+    description:
+      'Timestamp at which the project was deleted, if it was deleted',
     format: 'date-time',
   })
   deletionTime?: Date;

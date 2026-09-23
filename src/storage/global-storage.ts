@@ -1,10 +1,10 @@
-import { IStorageProvider } from './storage-provider.interface.js';
-import { StorageProviderFactory } from './storage-provider.factory.js';
-import { StorageConfig } from './storage-config.types.js';
-import { Inject, Injectable } from '@nestjs/common';
-import { STORAGE_CONFIG_TOKEN } from './storage-configuration.module.js';
-import { ModuleConfigurationService } from '@fsarch/server/configuration';
 import * as path from 'node:path';
+import { ModuleConfigurationService } from '@fsarch/server/configuration';
+import { Inject, Injectable } from '@nestjs/common';
+import { StorageConfig } from './storage-config.types.js';
+import { STORAGE_CONFIG_TOKEN } from './storage-configuration.module.js';
+import { StorageProviderFactory } from './storage-provider.factory.js';
+import { IStorageProvider } from './storage-provider.interface.js';
 
 // Global storage provider instance
 // This is initialized on first use and used by utility functions
@@ -23,7 +23,7 @@ export class GlobalStorageService {
     if (!globalStorageProvider) {
       const storageConfig = this.configService.get();
       globalStorageProvider = StorageProviderFactory.create(storageConfig);
-      
+
       // Set global data path for backward compatibility
       if (typeof storageConfig === 'string') {
         globalDataPath = storageConfig;
@@ -54,7 +54,9 @@ export function getGlobalStorageProvider(): IStorageProvider {
   if (!globalStorageProvider) {
     // Fallback for cases where DI is not available
     // This should not happen in normal application flow
-    console.warn('Global storage provider not initialized via DI. Using fallback.');
+    console.warn(
+      'Global storage provider not initialized via DI. Using fallback.',
+    );
     globalStorageProvider = StorageProviderFactory.create('./data');
   }
   return globalStorageProvider;

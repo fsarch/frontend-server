@@ -1,12 +1,14 @@
-import { Module, Global } from '@nestjs/common';
+import { ModuleConfigurationService } from '@fsarch/server/configuration';
+import { Global, Module } from '@nestjs/common';
+import { DATA_STORAGE_PROVIDER } from './storage.const.js';
+import { StorageService } from './storage.service.js';
+import { StorageConfig } from './storage-config.types.js';
+import {
+  STORAGE_CONFIG_TOKEN,
+  StorageConfigurationDynamicModule,
+} from './storage-configuration.module.js';
 import { StorageProviderFactory } from './storage-provider.factory.js';
 import { IStorageProvider } from './storage-provider.interface.js';
-import { STORAGE_CONFIG_TOKEN, StorageConfigurationDynamicModule } from './storage-configuration.module.js';
-import { ModuleConfigurationService } from '@fsarch/server/configuration';
-import { StorageConfig } from './storage-config.types.js';
-import { StorageService } from './storage.service.js';
-import { DATA_STORAGE_PROVIDER } from "./storage.const.js";
-
 
 @Global()
 @Module({
@@ -15,13 +17,19 @@ import { DATA_STORAGE_PROVIDER } from "./storage.const.js";
     StorageService,
     {
       provide: DATA_STORAGE_PROVIDER,
-      useFactory: (configService: ModuleConfigurationService<any>): IStorageProvider => {
+      useFactory: (
+        configService: ModuleConfigurationService<any>,
+      ): IStorageProvider => {
         const storageConfig = configService.get();
         return StorageProviderFactory.create(storageConfig);
       },
       inject: [STORAGE_CONFIG_TOKEN],
     },
   ],
-  exports: [DATA_STORAGE_PROVIDER, StorageService, StorageConfigurationDynamicModule],
+  exports: [
+    DATA_STORAGE_PROVIDER,
+    StorageService,
+    StorageConfigurationDynamicModule,
+  ],
 })
 export class StorageModule {}

@@ -25,7 +25,8 @@ export class ProjectVersionResponseDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'External id of the version, e.g. a build number or commit hash',
+    description:
+      'External id of the version, e.g. a build number or commit hash',
   })
   externalId?: string;
 
@@ -36,7 +37,8 @@ export class ProjectVersionResponseDto {
   creationTime: Date;
 
   @ApiPropertyOptional({
-    description: 'Timestamp at which the version was deleted, if it was deleted',
+    description:
+      'Timestamp at which the version was deleted, if it was deleted',
     format: 'date-time',
   })
   deletionTime?: Date;

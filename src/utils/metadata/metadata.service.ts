@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ProjectFile } from '../../database/entities/project-file.entity.js';
 import { ProjectVersion } from '../../database/entities/project-version.entity.js';
 
@@ -52,7 +52,7 @@ export class MetadataService {
       };
     }
 
-    const versionIds = versions.map(v => v.id);
+    const versionIds = versions.map((v) => v.id);
     const files = await this.projectFileRepository.find({
       where: { versionId: In(versionIds), deletionTime: null },
       order: { creationTime: 'DESC' },
@@ -67,7 +67,7 @@ export class MetadataService {
       const versionKey = version.id;
       versionsArray.push(versionKey);
 
-      const versionFiles = files.filter(f => f.versionId === version.id);
+      const versionFiles = files.filter((f) => f.versionId === version.id);
       const filesRecord: Record<string, ProjectFileInfo> = {};
 
       for (const file of versionFiles) {
@@ -188,7 +188,10 @@ export class MetadataService {
    * Findet eine Datei in einem Projekt. Sucht per Join über die Versionen des Projekts,
    * beginnend mit der neuesten, statt Version und Datei in getrennten Queries aufzulösen.
    */
-  async findFile(projectId: string, requestPath: string): Promise<{
+  async findFile(
+    projectId: string,
+    requestPath: string,
+  ): Promise<{
     file: ProjectFileInfo;
     version: string;
     filePath: string;

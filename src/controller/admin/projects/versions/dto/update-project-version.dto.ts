@@ -1,5 +1,5 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateProjectVersionDto {
   @ApiPropertyOptional({
@@ -19,7 +19,8 @@ export class UpdateProjectVersionDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'External id of the version, e.g. a build number or commit hash',
+    description:
+      'External id of the version, e.g. a build number or commit hash',
     maxLength: 2048,
   })
   @IsString()

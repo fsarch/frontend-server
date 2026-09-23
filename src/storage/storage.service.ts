@@ -1,7 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { IStorageProvider } from './storage-provider.interface.js';
+import { Inject, Injectable } from '@nestjs/common';
 import { Readable } from 'stream';
-import { DATA_STORAGE_PROVIDER } from "./storage.const.js";
+import { DATA_STORAGE_PROVIDER } from './storage.const.js';
+import { IStorageProvider } from './storage-provider.interface.js';
 
 @Injectable()
 export class StorageService {
