@@ -1,5 +1,6 @@
 import { FsArchAppBuilder } from '@fsarch/server';
 import { AppModule } from './app.module.js';
+import { Role } from './constants/role.enum.js';
 import { DATABASE_OPTIONS } from './database/index.js';
 import { initializeGlobalStorage } from './storage/global-storage.js';
 
@@ -12,6 +13,7 @@ async function bootstrap() {
     version: '1.0.0',
   })
     .enableAuth()
+    .enableUac(Object.values(Role))
     .addSwagger({
       title: 'Frontend-Server',
       description: 'The Frontend-Server API description',

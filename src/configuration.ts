@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'fs';
 import Joi from 'joi';
 import * as yaml from 'js-yaml';
+import { Role } from './constants/role.enum.js';
 
 const YAML_CONFIG_FILENAME = 'config.yaml';
 
@@ -15,7 +16,7 @@ const CONFIG_VALIDATION_SCHEMA = Joi.object({
           permissions: Joi.array()
             .items(
               Joi.string()
-                .valid('manage_claims', 'manage_images', 'manage_projects')
+                .valid(...Object.values(Role))
                 .required(),
             )
             .required(),

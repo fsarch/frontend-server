@@ -1,4 +1,5 @@
-import { Public } from '@fsarch/server/auth';
+import { AuthGuard, Public } from '@fsarch/server/auth';
+import { Roles } from '@fsarch/server/uac';
 import {
   Body,
   Controller,
@@ -9,6 +10,7 @@ import {
   Patch,
   Post,
   Res,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -20,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { Role } from '../../../constants/role.enum.js';
 import { FileService } from '../../../utils/file/file.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
@@ -41,6 +44,8 @@ export class ProjectsController {
   // ============ Projekt-Management Endpunkte ============
 
   @Post()
+  @UseGuards(AuthGuard)
+  @Roles(Role.create_project)
   @ApiBearerAuth()
   @ApiCreatedResponse({ type: ProjectResponseDto })
   @UsePipes(new ValidationPipe())
@@ -52,6 +57,8 @@ export class ProjectsController {
   }
 
   @Get()
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_project)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectResponseDto, isArray: true })
   async getAllProjects(): Promise<ProjectResponseDto[]> {
@@ -60,6 +67,8 @@ export class ProjectsController {
   }
 
   @Get(':projectId')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_project)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectResponseDto })
   @ApiNotFoundResponse({ description: 'Project not found' })
@@ -74,6 +83,8 @@ export class ProjectsController {
   }
 
   @Patch(':projectId')
+  @UseGuards(AuthGuard)
+  @Roles(Role.write_project)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectResponseDto })
   @ApiNotFoundResponse({
@@ -89,6 +100,8 @@ export class ProjectsController {
   }
 
   @Get(':projectId/versions')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_project_version)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectVersionResponseDto, isArray: true })
   @ApiNotFoundResponse({ description: 'Project not found' })
@@ -102,6 +115,8 @@ export class ProjectsController {
   }
 
   @Get('versions')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_project_version)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProjectVersionResponseDto, isArray: true })
   async getAllVersions(): Promise<ProjectVersionResponseDto[]> {

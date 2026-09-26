@@ -1,3 +1,5 @@
+import { AuthGuard } from '@fsarch/server/auth';
+import { Roles } from '@fsarch/server/uac';
 import {
   Body,
   Controller,
@@ -6,6 +8,7 @@ import {
   Patch,
   Post,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -24,6 +27,7 @@ import {
   VERSION_EXTERNAL_ID_HEADER,
   VERSION_NAME_HEADER,
 } from '../../../../constants/app-constants.js';
+import { Role } from '../../../../constants/role.enum.js';
 import { UploadService } from '../../../../utils/upload/upload.service.js';
 import { ProjectVersionResponseDto } from '../dto/project-version-response.dto.js';
 import { UpdateProjectVersionDto } from './dto/update-project-version.dto.js';
@@ -42,6 +46,8 @@ export class VersionsController {
   ) {}
 
   @Post()
+  @UseGuards(AuthGuard)
+  @Roles(Role.create_project_version)
   @ApiConsumes(
     'application/octet-stream',
     'application/zip',
@@ -76,6 +82,8 @@ export class VersionsController {
   }
 
   @Get(':versionId')
+  @UseGuards(AuthGuard)
+  @Roles(Role.read_project_version)
   @ApiOkResponse({ type: ProjectVersionResponseDto })
   @ApiNotFoundResponse({ description: 'Version not found' })
   public async getVersion(
@@ -90,6 +98,8 @@ export class VersionsController {
   }
 
   @Patch(':versionId')
+  @UseGuards(AuthGuard)
+  @Roles(Role.write_project_version)
   @ApiOkResponse({ type: ProjectVersionResponseDto })
   @ApiNotFoundResponse({ description: 'Version not found' })
   @UsePipes(new ValidationPipe())
