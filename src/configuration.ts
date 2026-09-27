@@ -2,32 +2,15 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'fs';
 import Joi from 'joi';
 import * as yaml from 'js-yaml';
-import { Role } from './constants/role.enum.js';
 
 const YAML_CONFIG_FILENAME = 'config.yaml';
 
+// `uac` and `auth` are intentionally not validated here: @fsarch/server
+// validates them itself (AuthModule / UacModule), the same way it already
+// does for `database`. Duplicating their schemas locally let this file
+// drift out of sync with the library (e.g. rejecting `uac.type: token-based`
+// and `auth.type: oidc`, which the library supports).
 const CONFIG_VALIDATION_SCHEMA = Joi.object({
-  uac: Joi.alternatives(
-    Joi.object({
-      type: Joi.string().valid('static').required(),
-      users: Joi.array().items(
-        Joi.object({
-          user_id: Joi.string().required(),
-          permissions: Joi.array()
-            .items(
-              Joi.string()
-                .valid(...Object.values(Role))
-                .required(),
-            )
-            .required(),
-        }),
-      ),
-    }),
-  ),
-  auth: Joi.object({
-    type: Joi.string().valid('jwt-jwk', 'static').required(),
-    jwkUrl: Joi.string(),
-  }),
   storage: Joi.object({
     data: Joi.alternatives()
       .try(
