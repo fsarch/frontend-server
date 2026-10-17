@@ -26,11 +26,13 @@ const STORAGE_DATA_SCHEMA = Joi.alternatives().try(
 // Export the token for easier access
 export { STORAGE_CONFIG_TOKEN };
 
-// Create and export the dynamic module directly
-export const StorageConfigurationDynamicModule = ModuleConfiguration.register(
-  STORAGE_CONFIG_TOKEN,
-  {
+// A factory, not a frozen constant, so each mono-service mount (see
+// `StorageModule.register()`) gets its own `serviceId`-scoped config
+// section instead of all mounts sharing one. Standalone callers simply omit
+// `serviceId`, unchanged from before this was a factory.
+export const createStorageConfigurationModule = (serviceId?: string) =>
+  ModuleConfiguration.register(STORAGE_CONFIG_TOKEN, {
     name: 'storage.data',
     validationSchema: STORAGE_DATA_SCHEMA,
-  },
-);
+    serviceId,
+  });
